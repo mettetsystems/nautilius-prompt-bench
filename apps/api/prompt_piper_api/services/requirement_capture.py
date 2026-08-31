@@ -8,9 +8,17 @@ from prompt_piper_api.services.embedding_service import EmbeddingService
 from prompt_piper_api.services.similarity_utils import cosine_similarity, lexical_overlap_score, tokenize
 
 _SECTION_TITLE = re.compile(
-    r"^(Technical Context|Core Task and Scope|Inputs, Outputs, and Contracts|"
+    r"^(Task Identity|Definition of Done|Change Scope|Architecture Policy|"
+    r"Discovery Policy|Execution Strategy|Validation Strategy|Failure Recovery|"
+    r"Autonomy Policy|Persistent Agent Memory|Completion Contract|"
+    r"Resource and Budget Governance|Tool Safety and Shell Restrictions|"
+    r"Context Compaction and State Persistence|Rollback and Backtracking|"
+    r"Escalation and HITL Interruption|Dependency and Security Verification|"
+    r"Long-Horizon Coding Agent Contract|"
+    r"Technical Context|Core Task and Scope|Inputs, Outputs, and Contracts|"
     r"Architectural Rules and Constraints|Edge Cases and Error Strategy|"
-    r"Response Formatting|Tools|Artifact rules)$",
+    r"Response Formatting|Tools|Artifact rules|"
+    r"Role and Objective|Tech Stack|Context and Input|Constraints|Expected Output)$",
     re.IGNORECASE,
 )
 _DIVIDER = re.compile(r"^-+$")
@@ -38,16 +46,25 @@ _BINDING_CAPTURE_SLOTS: tuple[ConstraintSlot, ...] = (
 )
 
 _STRING_LEAVES: tuple[str, ...] = (
-    "core_task_scope.objective",
-    "core_task_scope.task_type",
-    "technical_context.environment",
-    "technical_context.dependency_policy",
-    "inputs_outputs_contracts.inputs",
-    "inputs_outputs_contracts.output_contract",
-    "architectural_rules.coding_style",
-    "edge_cases_error_strategy.failure_handling",
-    "response_formatting.explanation_level",
-    "response_formatting.verbosity",
+    "task_identity.objective",
+    "task_identity.task_type",
+    "task_identity.environment",
+    "agent_contract.definition_of_done",
+    "agent_contract.change_scope",
+    "agent_contract.architecture_policy",
+    "agent_contract.discovery_policy",
+    "agent_contract.execution_strategy",
+    "agent_contract.validation_strategy",
+    "agent_contract.failure_recovery",
+    "agent_contract.autonomy_policy",
+    "agent_contract.persistent_memory",
+    "agent_contract.completion_contract",
+    "agent_contract.resource_budget",
+    "agent_contract.tool_safety",
+    "agent_contract.context_compaction",
+    "agent_contract.rollback_protocol",
+    "agent_contract.escalation_rules",
+    "agent_contract.dependency_security",
 )
 
 
@@ -99,12 +116,23 @@ def collect_optimization_binding_phrases(
     for slot in _BINDING_CAPTURE_SLOTS:
         phrases.extend(graph.slots.get(slot.value, []))
     for value in (
-        card.technical_context.environment,
-        card.architectural_rules.coding_style,
-        card.response_formatting.explanation_level,
+        card.task_identity.objective,
+        card.task_identity.environment,
+        card.agent_contract.definition_of_done,
+        card.agent_contract.change_scope,
+        card.agent_contract.validation_strategy,
+        card.agent_contract.completion_contract,
+        card.agent_contract.failure_recovery,
+        card.agent_contract.resource_budget,
+        card.agent_contract.persistent_memory,
+        card.agent_contract.tool_safety,
     ):
         if value.strip():
             phrases.append(value.strip())
+    for values in (
+        card.task_identity.additional_constraints,
+    ):
+        phrases.extend(item.strip() for item in values if item.strip())
     return dedupe_phrases(phrases)
 
 

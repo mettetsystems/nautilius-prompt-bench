@@ -1,8 +1,8 @@
-# Shared Podman network for PromptPiperCode container units.
+# Shared Podman network for Nautilius Prompting Workbench container units.
 # Install: scripts/install-quadlets.sh --method containers
 
 [Unit]
-Description=PromptPiperCode Podman network
+Description=Nautilius Prompting Workbench Podman network
 Before=prompt-piper-postgres.service prompt-piper-api.service prompt-piper-web.service
 
 [Network]

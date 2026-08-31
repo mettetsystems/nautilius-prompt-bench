@@ -76,7 +76,7 @@ def test_re_export_creates_new_unique_folder_without_overwriting(tmp_path: Path)
             "Output contract: JSON with blockers, owners, and next steps.",
         ]
     )
-    service.finalize(session_id)
+    service.finalize(session_id, acknowledge_first_shot_risk=True)
     service.optimize(session_id)
     service.approve_optimization(session_id)
     first = service.generate_artifacts(session_id)
@@ -116,7 +116,7 @@ def test_structured_state_error(client: TestClient | None = None) -> None:
         json={"initial_request": "Draft a concise weekly status update prompt."},
     )
     session_id = created.json()["session"]["id"]
-    response = test_client.post(f"/sessions/{session_id}/finalize")
+    response = test_client.post(f"/sessions/{session_id}/finalize", json={"acknowledge_first_shot_risk": True})
     assert response.status_code == 409
     body = response.json()
     assert body["code"] == "invalid_state"

@@ -47,7 +47,7 @@ class RegistryLineageFile(BaseModel):
 
 
 class PromptRegistryRecord(BaseModel):
-    """Metadata for a finalized prompt stored in the local Git-backed registry."""
+    """Metadata for a finalized prompt stored in the local install registry."""
 
     prompt_id: str = Field(description="Stable identifier used in data/registry paths.")
     version: int = Field(ge=1, description="Immutable registry version number.")

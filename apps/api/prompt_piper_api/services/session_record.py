@@ -21,6 +21,15 @@ class SessionRecord(BaseModel):
     clarification_turn: int = Field(default=0, ge=0, le=MAX_CLARIFICATION_QUESTIONS)
     asked_clarification_fields: list[str] = Field(default_factory=list)
     last_clarification_answer: str | None = None
+    edit_unresolved_asked: list[str] = Field(
+        default_factory=list,
+        description="Unresolved fields already asked during the current edit-pass queue.",
+    )
+    edit_unresolved_total: int = Field(
+        default=0,
+        ge=0,
+        description="Size of the unresolved queue when the current edit pass started.",
+    )
     optimization_result: OptimizationResult | None = None
     similarity_result: SimilarityCheckResult | None = None
     pre_inference_metrics: PreInferenceMetrics | None = None

@@ -3,6 +3,11 @@ from __future__ import annotations
 from prompt_piper_api.domain.optimization import OptimizationResult
 from prompt_piper_api.domain.pre_inference_metrics import PreInferenceMetrics, QualityGateResult
 from prompt_piper_api.domain.requirement_card import RequirementCard
+from prompt_piper_api.services.first_shot_readiness import (
+    SEMANTIC_PRECISION_SOFT_THRESHOLD,
+    assess_first_shot_readiness,
+    first_shot_warning_messages,
+)
 from prompt_piper_api.services.pre_inference_metrics_service import PreInferenceMetricsService
 from prompt_piper_api.services.regression_evaluator import RegressionEvaluator, RegressionSummary
 
@@ -12,15 +17,19 @@ class QualityGateService:
 
     MIN_REQUIREMENT_CAPTURE = 0.90
     MAX_REGRESSION_LOSS_RATE = 0.10
+    # Soft→hard: precision below this becomes a hard failure when enforce_first_shot=True.
+    MIN_SEMANTIC_PRECISION = SEMANTIC_PRECISION_SOFT_THRESHOLD
 
     def __init__(
         self,
         *,
         metrics_service: PreInferenceMetricsService | None = None,
         regression_evaluator: RegressionEvaluator | None = None,
+        enforce_first_shot: bool = False,
     ) -> None:
         self._metrics = metrics_service or PreInferenceMetricsService()
         self._regression = regression_evaluator or RegressionEvaluator()
+        self._enforce_first_shot = enforce_first_shot
 
     def compute_metrics(
         self,
@@ -41,10 +50,12 @@ class QualityGateService:
         self,
         metrics: PreInferenceMetrics,
         *,
+        card: RequirementCard | None = None,
         safety_failures: list[str] | None = None,
         regression: RegressionSummary | None = None,
     ) -> QualityGateResult:
         failures: list[str] = []
+        warnings: list[str] = []
         safety = list(safety_failures or [])
         if regression is not None:
             safety.extend(regression.safety_failures)
@@ -77,9 +88,37 @@ class QualityGateService:
                 f"of regression cases ({regression.loss_rate:.1%})"
             )
 
+        readiness = assess_first_shot_readiness(card) if card is not None else None
+        if readiness is not None:
+            warnings.extend(
+                first_shot_warning_messages(
+                    readiness,
+                    semantic_precision_score=metrics.semantic_precision_score,
+                    section_coverage=metrics.section_coverage,
+                )
+            )
+        elif metrics.semantic_precision_score < self.MIN_SEMANTIC_PRECISION:
+            warnings.append(
+                "semantic_precision_score below "
+                f"{self.MIN_SEMANTIC_PRECISION:.2f} ({metrics.semantic_precision_score:.2f})"
+            )
+
+        if self._enforce_first_shot:
+            if metrics.semantic_precision_score < self.MIN_SEMANTIC_PRECISION:
+                failures.append(
+                    "semantic_precision_score below "
+                    f"{self.MIN_SEMANTIC_PRECISION:.2f} ({metrics.semantic_precision_score})"
+                )
+            if readiness is not None and not readiness.ready:
+                failures.append(
+                    "first_shot_readiness gaps remain: "
+                    + "; ".join(risk.message for risk in readiness.risks[:4])
+                )
+
         return QualityGateResult(
             passed=not failures,
             failures=failures,
+            warnings=warnings,
             metrics=metrics,
             regression_loss_rate=regression_loss_rate,
             regression_cases_run=regression.cases_run if regression else 0,
@@ -98,4 +137,4 @@ class QualityGateService:
             optimization=optimization,
             baseline_body=optimization.original_body,
         )
-        return self.evaluate(metrics)
+        return self.evaluate(metrics, card=card)

@@ -16,16 +16,18 @@ from prompt_piper_api.domain.session import PromptSession
 from prompt_piper_api.domain.similarity import SimilarityCheckResult, SimilarityMatch
 from prompt_piper_api.llm.base import LLMClient
 from prompt_piper_api.services.artifact_export_service import ArtifactExportService
-from prompt_piper_api.services.audit_log_service import AuditLogService
 from prompt_piper_api.services.ask_the_locals_service import (
     AskTheLocalsInsight,
     AskTheLocalsService,
 )
+from prompt_piper_api.services.audit_log_service import AuditLogService
 from prompt_piper_api.services.clarification_option_guides import QuickReplyGuide
 from prompt_piper_api.services.clarification_prompts import ClarificationVersionText
 from prompt_piper_api.services.clarification_question_ranker import (
     ClarificationQuestion,
     ClarificationQuestionRanker,
+    clarification_field_priority,
+    prune_deferred_unresolved,
 )
 from prompt_piper_api.services.clarification_suggestion_service import (
     ClarificationSuggestions,
@@ -33,10 +35,18 @@ from prompt_piper_api.services.clarification_suggestion_service import (
 )
 from prompt_piper_api.services.draft_generator import DraftGenerator
 from prompt_piper_api.services.draft_patch_service import DraftPatchService
-from prompt_piper_api.services.exceptions import SessionNotFoundError, StateTransitionError
+from prompt_piper_api.services.exceptions import (
+    FirstShotRiskError,
+    SessionNotFoundError,
+    StateTransitionError,
+)
 from prompt_piper_api.services.external_inference_service import (
     ExternalInferenceBlockedError,
     ExternalInferenceService,
+)
+from prompt_piper_api.services.first_shot_readiness import (
+    FirstShotReadiness,
+    assess_first_shot_readiness,
 )
 from prompt_piper_api.services.git_registry_service import (
     GitRegistryService,
@@ -50,29 +60,31 @@ from prompt_piper_api.services.precision_suggestion_service import PrecisionSugg
 from prompt_piper_api.services.quality_gate_service import QualityGateService
 from prompt_piper_api.services.requirement_card_extractor import RequirementCardExtractor
 from prompt_piper_api.services.semantic_precision import (
-    PRECISION_THRESHOLD,
     SemanticPrecisionEvaluator,
 )
 from prompt_piper_api.services.session_record import SessionRecord
 from prompt_piper_api.services.session_store import InMemorySessionStore, SessionStore
-from prompt_piper_api.services.user_settings_service import UserSettingsService, get_user_settings_service
 from prompt_piper_api.services.similarity_check_service import SimilarityCheckService
 from prompt_piper_api.services.state_transitions import (
     ACTION_ANSWER,
     ACTION_APPROVE_OPTIMIZATION,
     ACTION_COMPLETE_CLARIFICATION,
+    ACTION_CREATE_FROM_TEMPLATE,
     ACTION_EDIT,
     ACTION_FINALIZE,
     ACTION_GENERATE_ARTIFACTS,
     ACTION_OPTIMIZE,
+    ACTION_PRECISION_APPLY,
+    ACTION_PRECISION_SUGGEST,
     ACTION_REOPEN_EDIT,
     ACTION_RERUN_OPTIMIZE,
     ACTION_RERUN_SIMILARITY,
-    ACTION_CREATE_FROM_TEMPLATE,
-    ACTION_PRECISION_APPLY,
-    ACTION_PRECISION_SUGGEST,
     require_session_open,
     require_state,
+)
+from prompt_piper_api.services.user_settings_service import (
+    UserSettingsService,
+    get_user_settings_service,
 )
 
 logger = get_logger(__name__)
@@ -103,9 +115,11 @@ class SessionActionResult(BaseModel):
     optimization_result: OptimizationResult | None = None
     pre_inference_metrics: PreInferenceMetrics | None = None
     quality_gate_passed: bool | None = None
+    quality_gate_warnings: list[str] = []
     artifact_result: ArtifactGenerationResult | None = None
     artifact_warning: str | None = None
     inference_result: SendToInferenceResult | None = None
+    first_shot_readiness: FirstShotReadiness | None = None
 
 
 def _clarification_payload(
@@ -137,7 +151,8 @@ def _clarification_payload(
 
 
 class SessionService:
-    """Orchestrates the PromptPiperCode session state machine."""
+    """Orchestrates the Nautilius Prompting Workbench session state machine."""
+
 
     def __init__(
         self,
@@ -232,16 +247,23 @@ class SessionService:
             ),
         )
         record.add_draft(draft)
+        self._begin_edit_unresolved_queue(record)
         self._save(record)
-        return SessionActionResult(record=record, draft=draft)
+        return SessionActionResult(
+            record=record,
+            draft=draft,
+            **_clarification_payload(record.pending_clarification),
+        )
 
     def get_session(self, session_id: UUID) -> SessionRecord:
         cached = self._cache.get(session_id)
         if cached is not None:
+            prune_deferred_unresolved(cached.session.requirement_card)
             return cached
         record = self._store.get(session_id)
         if record is None:
             raise SessionNotFoundError(str(session_id))
+        prune_deferred_unresolved(record.session.requirement_card)
         self._cache[session_id] = record
         return record
 
@@ -262,7 +284,7 @@ class SessionService:
         require_state(
             session.state,
             ACTION_ANSWER,
-            "Clarification suggestions are only available while clarifying.",
+            "Clarification suggestions are only available while clarifying or resolving unresolved fields in edit.",
         )
         if pending is None:
             raise StateTransitionError(
@@ -287,7 +309,7 @@ class SessionService:
         require_state(
             session.state,
             ACTION_ANSWER,
-            "Ask The Locals is only available while clarifying.",
+            "Ask The Locals is only available while clarifying or resolving unresolved fields in edit.",
         )
         if pending is None:
             raise StateTransitionError(
@@ -316,7 +338,7 @@ class SessionService:
         require_state(
             session.state,
             ACTION_ANSWER,
-            "Clarification answers are only accepted while clarifying.",
+            "Clarification answers are only accepted while clarifying or resolving unresolved fields in edit.",
         )
         if pending is None:
             raise StateTransitionError(
@@ -324,6 +346,9 @@ class SessionService:
                 current_state=session.state.value,
                 action=ACTION_ANSWER,
             )
+
+        if session.state is SessionState.EDIT:
+            return self._answer_edit_unresolved(record, pending, answer)
 
         self._extractor.apply_answer(session.requirement_card, pending.field_name, answer)
         record.pending_clarification = None
@@ -334,7 +359,11 @@ class SessionService:
         if self._should_finish_clarification(record):
             draft = self._create_initial_draft(record)
             self._save(record)
-            return SessionActionResult(record=record, draft=draft)
+            return SessionActionResult(
+                record=record,
+                draft=draft,
+                **_clarification_payload(record.pending_clarification),
+            )
 
         question = self._set_pending_question(record)
         self._save(record)
@@ -373,9 +402,19 @@ class SessionService:
         record.pending_clarification = None
         draft = self._create_initial_draft(record)
         self._save(record)
-        return SessionActionResult(record=record, draft=draft)
+        return SessionActionResult(
+            record=record,
+            draft=draft,
+            **_clarification_payload(record.pending_clarification),
+        )
 
-    def edit_draft(self, session_id: UUID, instruction: str) -> SessionActionResult:
+    def edit_draft(
+        self,
+        session_id: UUID,
+        instruction: str | None = None,
+        *,
+        body: str | None = None,
+    ) -> SessionActionResult:
         record = self.get_session(session_id)
         session = record.session
 
@@ -399,6 +438,12 @@ class SessionService:
                 action=ACTION_EDIT,
             )
 
+        if body is not None:
+            return self._replace_draft_body(record, body)
+        if instruction is None or not instruction.strip():
+            msg = "Provide an edit instruction or a replacement draft body"
+            raise ValueError(msg)
+
         patch = self._patch_service.apply(session.requirement_card, instruction, current.body)
         draft = PromptDraft.create_revision(
             session_id=session.id,
@@ -421,7 +466,37 @@ class SessionService:
             updated_requirement_card=patch.updated_requirement_card,
         )
 
-    def finalize(self, session_id: UUID) -> SessionActionResult:
+    def _replace_draft_body(self, record: SessionRecord, body: str) -> SessionActionResult:
+        if not body.strip():
+            msg = "Draft body cannot be empty"
+            raise ValueError(msg)
+        session = record.session
+        draft = PromptDraft.create_revision(
+            session_id=session.id,
+            existing_drafts=record.drafts,
+            body=body,
+            change_summary="Direct draft edit.",
+            semantic_diff="Draft body replaced by a direct edit.",
+        )
+        record.add_draft(draft)
+        session.touch()
+        self._save(record)
+        return SessionActionResult(
+            record=record,
+            draft=draft,
+            revised_draft=draft,
+            semantic_diff=draft.semantic_diff,
+            change_summary=draft.change_summary,
+            edit_intent=EditIntent.DIRECT_EDIT,
+            updated_requirement_card=session.requirement_card,
+        )
+
+    def finalize(
+        self,
+        session_id: UUID,
+        *,
+        acknowledge_first_shot_risk: bool = False,
+    ) -> SessionActionResult:
         record = self.get_session(session_id)
         session = record.session
 
@@ -437,6 +512,15 @@ class SessionService:
                 "Finalization requires an existing draft.",
                 current_state=session.state.value,
                 action="finalize",
+            )
+
+        readiness = assess_first_shot_readiness(session.requirement_card)
+        if not readiness.ready and not acknowledge_first_shot_risk:
+            risk_messages = [risk.message for risk in readiness.risks]
+            raise FirstShotRiskError(
+                "First-shot readiness gaps remain. "
+                "Fill contract fields or finalize with acknowledge_first_shot_risk=true.",
+                risks=risk_messages,
             )
 
         for draft in record.drafts:
@@ -458,8 +542,8 @@ class SessionService:
                 requirement_card=session.requirement_card,
                 session_id=session.id,
                 domain="coding",
-                task_family=session.requirement_card.core_task_scope.task_type,
-                output_form=session.requirement_card.inputs_outputs_contracts.output_contract,
+                task_family=session.requirement_card.task_identity.task_type,
+                output_form=session.requirement_card.agent_contract.completion_contract,
             )
             registry_warning = registry_result.warning
 
@@ -503,6 +587,7 @@ class SessionService:
             similarity_warning=similarity_warning,
             similarity_matches=similarity_matches,
             similarity_result=similarity_result,
+            first_shot_readiness=readiness,
         )
 
     def reopen_for_edit(self, session_id: UUID) -> SessionActionResult:
@@ -530,9 +615,14 @@ class SessionService:
 
         self._clear_downstream_work(record)
         session.state = SessionState.EDIT
+        self._begin_edit_unresolved_queue(record)
         session.touch()
         self._save(record)
-        return SessionActionResult(record=record, draft=current)
+        return SessionActionResult(
+            record=record,
+            draft=current,
+            **_clarification_payload(record.pending_clarification),
+        )
 
     def rerun_similarity_check(self, session_id: UUID) -> SessionActionResult:
         record = self.get_session(session_id)
@@ -694,6 +784,7 @@ class SessionService:
             optimization_result=approved,
             pre_inference_metrics=gate_result.metrics,
             quality_gate_passed=True,
+            quality_gate_warnings=list(gate_result.warnings),
         )
 
     def _llm_available(self) -> bool:
@@ -780,6 +871,8 @@ class SessionService:
             line_number=finding.line_number,
             term=finding.term,
             replacement=replacement,
+            start=finding.start,
+            end=finding.end,
         )
 
         optimization = optimization.model_copy(
@@ -1084,8 +1177,88 @@ class SessionService:
         record.add_draft(draft)
         record.session.state = SessionState.EDIT
         record.pending_clarification = None
+        self._begin_edit_unresolved_queue(record)
         record.session.touch()
         return draft
+
+    def _edit_unresolved_queue(self, card: RequirementCard) -> list[str]:
+        unresolved = set(card.unresolved_fields)
+        return [field for field in clarification_field_priority(card) if field in unresolved]
+
+    def _begin_edit_unresolved_queue(self, record: SessionRecord) -> ClarificationQuestion | None:
+        """Seed a one-pass question queue for unresolved fields while in edit."""
+        record.edit_unresolved_asked = []
+        queue = self._edit_unresolved_queue(record.session.requirement_card)
+        record.edit_unresolved_total = len(queue)
+        if not queue:
+            record.pending_clarification = None
+            return None
+        return self._set_pending_edit_unresolved_question(record)
+
+    def _set_pending_edit_unresolved_question(
+        self,
+        record: SessionRecord,
+    ) -> ClarificationQuestion | None:
+        remaining = [
+            field
+            for field in self._edit_unresolved_queue(record.session.requirement_card)
+            if field not in record.edit_unresolved_asked
+        ]
+        if not remaining:
+            record.pending_clarification = None
+            return None
+
+        field_name = remaining[0]
+        asked_count = len(record.edit_unresolved_asked)
+        total = record.edit_unresolved_total or (asked_count + len(remaining))
+        question = self._ranker.build_question(
+            field_name,
+            question_number=asked_count + 1,
+            total_questions=max(total, 1),
+            rank=asked_count + 1,
+            card=record.session.requirement_card,
+            last_answer=record.last_clarification_answer,
+        )
+        record.pending_clarification = question
+        record.edit_unresolved_asked.append(field_name)
+        record.session.touch()
+        return question
+
+    def _answer_edit_unresolved(
+        self,
+        record: SessionRecord,
+        pending: ClarificationQuestion,
+        answer: str,
+    ) -> SessionActionResult:
+        session = record.session
+        self._extractor.apply_answer(session.requirement_card, pending.field_name, answer)
+        record.last_clarification_answer = answer.strip()
+
+        generated = self._draft_generator.generate(session.requirement_card)
+        session.requirement_card.unresolved_fields = list(generated.unresolved_fields)
+        draft = PromptDraft.create_revision(
+            session_id=session.id,
+            existing_drafts=record.drafts,
+            body=generated.body,
+            change_summary=(
+                f"Updated draft from answer to {pending.field_name}. "
+                + generated.unspecified_note
+            ),
+            semantic_diff=generated.unspecified_note,
+        )
+        record.add_draft(draft)
+        question = self._set_pending_edit_unresolved_question(record)
+        session.touch()
+        self._save(record)
+        return SessionActionResult(
+            record=record,
+            draft=draft,
+            revised_draft=draft,
+            change_summary=draft.change_summary,
+            semantic_diff=draft.semantic_diff,
+            updated_requirement_card=session.requirement_card,
+            **_clarification_payload(question),
+        )
 
     @staticmethod
     def _template_draft_body(source: SessionRecord) -> str:
@@ -1100,10 +1273,19 @@ class SessionService:
 
     @staticmethod
     def _reconcile_unresolved_fields(canonical_body: str, card: RequirementCard) -> None:
-        """Drop unresolved fields already marked unspecified in the canonical draft."""
+        """Drop non-critical unresolved fields already marked unspecified in the canonical draft.
+
+        Critical contract leaves stay unresolved so honesty / first-shot scoring still
+        catches optimizer drops of those unspecified markers.
+        """
+        from prompt_piper_api.services.first_shot_readiness import CRITICAL_CONTRACT_FIELDS
+
         metrics = PreInferenceMetricsService()
+        critical = frozenset(CRITICAL_CONTRACT_FIELDS)
         card.unresolved_fields = [
             field_name
             for field_name in card.unresolved_fields
-            if not metrics._field_marked_unspecified(canonical_body, card, field_name)
+            if field_name in critical
+            or not metrics._field_marked_unspecified(canonical_body, card, field_name)
         ]
+        prune_deferred_unresolved(card)

@@ -24,7 +24,7 @@ function apiProxy(target: string) {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, repoRoot, "");
-  const apiTarget = `http://${env.API_HOST ?? "127.0.0.1"}:${env.API_PORT ?? "8000"}`;
+  const apiTarget = `http://${env.API_HOST ?? "127.0.0.1"}:${env.API_PORT ?? "8010"}`;
 
   return {
     envDir: repoRoot,
@@ -36,7 +36,8 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       host: "127.0.0.1",
-      port: 5173,
+      port: Number(env.WEB_PORT ?? 5174),
+      strictPort: true,
       proxy: {
         "/health": apiProxy(apiTarget),
         "/sessions": apiProxy(apiTarget),

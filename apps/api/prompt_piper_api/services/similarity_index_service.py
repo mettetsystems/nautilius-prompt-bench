@@ -41,18 +41,16 @@ def compress_abstract(abstract: str, body: str, *, max_len: int = 400) -> str:
 
 def build_lessons_learned(card: RequirementCard) -> str:
     parts: list[str] = []
-    if card.architectural_rules.non_functional:
+    if card.task_identity.additional_constraints:
         parts.append(
-            "Non-functional: " + "; ".join(card.architectural_rules.non_functional)
+            "Constraints: " + "; ".join(card.task_identity.additional_constraints)
         )
-    if card.core_task_scope.out_of_scope:
-        parts.append("Out of scope: " + "; ".join(card.core_task_scope.out_of_scope))
-    if card.edge_cases_error_strategy.edge_cases:
-        parts.append(
-            "Edge cases: " + "; ".join(card.edge_cases_error_strategy.edge_cases)
-        )
-    if card.technical_context.forbidden_libraries:
-        parts.append("Avoid libraries: " + "; ".join(card.technical_context.forbidden_libraries))
+    if card.agent_contract.change_scope.strip():
+        parts.append("Change scope: " + card.agent_contract.change_scope.strip()[:240])
+    if card.agent_contract.failure_recovery.strip():
+        parts.append("Failure recovery: " + card.agent_contract.failure_recovery.strip()[:240])
+    if card.agent_contract.tool_safety.strip():
+        parts.append("Tool safety: " + card.agent_contract.tool_safety.strip()[:240])
     return "\n".join(parts) if parts else "No lessons captured yet."
 
 

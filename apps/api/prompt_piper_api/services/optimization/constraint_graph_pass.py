@@ -6,15 +6,18 @@ from prompt_piper_api.domain.optimization import ConstraintGraph, ConstraintSlot
 from prompt_piper_api.domain.requirement_card import RequirementCard
 
 _SECTION_RE = re.compile(
-    r"^(Technical Context|Core Task and Scope|Inputs, Outputs, and Contracts|"
+    r"^(Task Identity|Definition of Done|Change Scope|Architecture Policy|"
+    r"Discovery Policy|Execution Strategy|Validation Strategy|Failure Recovery|"
+    r"Autonomy Policy|Persistent Agent Memory|Completion Contract|"
+    r"Resource and Budget Governance|Tool Safety and Shell Restrictions|"
+    r"Context Compaction and State Persistence|Rollback and Backtracking|"
+    r"Escalation and HITL Interruption|Dependency and Security Verification|"
+    r"Long-Horizon Coding Agent Contract|"
+    r"Technical Context|Core Task and Scope|Inputs, Outputs, and Contracts|"
     r"Architectural Rules and Constraints|Edge Cases and Error Strategy|"
-    r"Response Formatting)\n-+\n",
+    r"Response Formatting|Role and Objective|Tech Stack|Context and Input|"
+    r"Constraints|Expected Output)\n-+\n",
     re.MULTILINE | re.IGNORECASE,
-)
-
-_FILLER_PATTERNS = (
-    re.compile(r"\b(please note that|it is important to|in order to)\b", re.I),
-    re.compile(r"\b(as mentioned above|as stated earlier)\b", re.I),
 )
 
 _CONFLICT_RULES: tuple[tuple[str, str, str, bool], ...] = (
@@ -25,18 +28,27 @@ _CONFLICT_RULES: tuple[tuple[str, str, str, bool], ...] = (
         True,
     ),
     (
-        r"\b(cite|sources|references|must cite)\b",
-        (
-            r"\b(no external references|without citations|do not cite|"
-            r"do not use external references)\b"
-        ),
-        "cite heavily vs no external references",
+        r"\b(minimum[- ]necessary change|only files named)\b",
+        r"\b((?:may|can|allowed to) rewrite unrelated|unrestricted authority|change anything)\b",
+        "minimum-necessary change vs unrestricted edits",
         True,
     ),
     (
-        r"\b(plain text only|no markdown|plain text)\b",
-        r"\b(table|chart|markdown|diagram)\b",
-        "plain text only vs include tables and charts",
+        r"\b(pause and persist|request human review)\b",
+        r"\b(never pause|never escalate|spin indefinitely)\b",
+        "pause-and-persist vs never stop",
+        True,
+    ),
+    (
+        r"\b(standard library only|stdlib only|no third[- ]party)\b",
+        r"\b(may add|add (a |the )?(well-known|new) packages?|pip install|npm install)\b",
+        "stdlib-only vs adding new dependencies",
+        True,
+    ),
+    (
+        r"\bno force[- ]push\b",
+        r"\b(git push --force is allowed|force[- ]push(?:es)? allowed|may force[- ]push)\b",
+        "no force-push vs force-push allowed",
         True,
     ),
 )
@@ -47,14 +59,32 @@ def estimate_tokens(text: str) -> int:
 
 
 def extract_section(body: str, title: str) -> list[str]:
-    pattern = re.compile(
-        rf"^{re.escape(title)}\n-+\n(.*?)(?=\n[A-Za-z].*\n-+\n|\Z)",
-        re.MULTILINE | re.DOTALL | re.IGNORECASE,
-    )
-    match = pattern.search(body)
-    if not match:
-        return []
-    return [line.strip() for line in match.group(1).splitlines() if line.strip()]
+    """Return non-empty lines under a title + dash-underline header.
+
+    Markdown table separators such as ``| --- | --- |`` are not section
+    underlines. A DOTALL lookahead from the next letter-line to the next
+    dash-line previously swallowed Task Identity down to a single line
+    whenever a pasted table sat in that section.
+    """
+    lines = body.splitlines()
+    wanted = title.strip().lower()
+    capturing = False
+    captured: list[str] = []
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        nxt = lines[index + 1] if index + 1 < len(lines) else ""
+        if line.strip() and re.fullmatch(r"-+", nxt.strip()):
+            if capturing:
+                break
+            if line.strip().lower() == wanted:
+                capturing = True
+                index += 2
+                continue
+        if capturing and line.strip():
+            captured.append(line.strip())
+        index += 1
+    return captured
 
 
 class ConstraintGraphPass:
@@ -62,65 +92,53 @@ class ConstraintGraphPass:
 
     def run(self, body: str, card: RequirementCard) -> ConstraintGraph:
         slots: dict[str, list[str]] = {slot.value: [] for slot in ConstraintSlot}
+        contract = card.agent_contract
+        task = card.task_identity
 
-        if card.objective.strip():
-            slots[ConstraintSlot.OBJECTIVE.value].append(card.objective.strip())
-        slots[ConstraintSlot.OBJECTIVE.value].extend(
-            extract_section(body, "Core Task and Scope")
-        )
+        if task.objective.strip():
+            slots[ConstraintSlot.OBJECTIVE.value].append(task.objective.strip())
+        slots[ConstraintSlot.OBJECTIVE.value].extend(extract_section(body, "Task Identity"))
+        if contract.definition_of_done.strip():
+            slots[ConstraintSlot.OBJECTIVE.value].append(contract.definition_of_done.strip())
 
-        if card.technical_context.environment.strip():
-            slots[ConstraintSlot.AUDIENCE.value].append(
-                card.technical_context.environment.strip()
-            )
-        for line in extract_section(body, "Technical Context"):
-            if line.lower().startswith("environment:"):
-                slots[ConstraintSlot.AUDIENCE.value].append(line.split(":", 1)[1].strip())
+        if task.environment.strip():
+            slots[ConstraintSlot.AUDIENCE.value].append(task.environment.strip())
 
-        slots[ConstraintSlot.SCOPE.value].extend(card.technical_context.integration_points)
-        slots[ConstraintSlot.SCOPE.value].extend(card.core_task_scope.out_of_scope)
-        slots[ConstraintSlot.EXCLUSIONS.value].extend(card.technical_context.forbidden_libraries)
-        slots[ConstraintSlot.EXCLUSIONS.value].extend(card.core_task_scope.out_of_scope)
+        if contract.change_scope.strip():
+            slots[ConstraintSlot.SCOPE.value].append(contract.change_scope.strip())
+        if contract.architecture_policy.strip():
+            slots[ConstraintSlot.SCOPE.value].append(contract.architecture_policy.strip())
+        if contract.discovery_policy.strip():
+            slots[ConstraintSlot.SCOPE.value].append(contract.discovery_policy.strip())
+        if contract.execution_strategy.strip():
+            slots[ConstraintSlot.SCOPE.value].append(contract.execution_strategy.strip())
+        slots[ConstraintSlot.SCOPE.value].extend(task.additional_constraints)
 
-        if card.inputs_outputs_contracts.output_contract.strip():
-            slots[ConstraintSlot.FORMAT.value].append(
-                card.inputs_outputs_contracts.output_contract.strip()
-            )
-        slots[ConstraintSlot.FORMAT.value].extend(
-            extract_section(body, "Inputs, Outputs, and Contracts")
-        )
+        if contract.tool_safety.strip():
+            slots[ConstraintSlot.EXCLUSIONS.value].append(contract.tool_safety.strip())
+        if contract.dependency_security.strip():
+            slots[ConstraintSlot.EXCLUSIONS.value].append(contract.dependency_security.strip())
 
-        for constraint in card.architectural_rules.non_functional:
-            lowered = constraint.lower()
-            if "token" in lowered or "length" in lowered:
-                slots[ConstraintSlot.TOKEN_BUDGET.value].append(constraint)
-            elif "cite" in lowered or "source" in lowered:
-                slots[ConstraintSlot.MUST_CITE.value].append(constraint)
-            elif "vendor" in lowered:
-                slots[ConstraintSlot.FINAL_VENDOR.value].append(constraint)
-            elif "artifact" in lowered or "attachment" in lowered or "test" in lowered:
-                slots[ConstraintSlot.ARTIFACT_REQUIRED.value].append(constraint)
-            elif "concise" in lowered or "brief" in lowered or "short" in lowered:
-                slots[ConstraintSlot.VERBOSITY.value].append(constraint)
-            else:
-                slots[ConstraintSlot.SCOPE.value].append(constraint)
+        if contract.completion_contract.strip():
+            slots[ConstraintSlot.FORMAT.value].append(contract.completion_contract.strip())
+        slots[ConstraintSlot.FORMAT.value].extend(extract_section(body, "Completion Contract"))
 
-        slots[ConstraintSlot.SCOPE.value].extend(card.architectural_rules.design_patterns)
-        slots[ConstraintSlot.SCOPE.value].extend(
-            extract_section(body, "Architectural Rules and Constraints")
-        )
-        slots[ConstraintSlot.SCOPE.value].extend(
-            extract_section(body, "Edge Cases and Error Strategy")
-        )
-
-        if card.response_formatting.verbosity.strip():
-            slots[ConstraintSlot.VERBOSITY.value].append(
-                card.response_formatting.verbosity.strip()
-            )
-        if card.response_formatting.extra_artifacts:
-            slots[ConstraintSlot.ARTIFACT_REQUIRED.value].extend(
-                card.response_formatting.extra_artifacts
-            )
+        if contract.resource_budget.strip():
+            slots[ConstraintSlot.TOKEN_BUDGET.value].append(contract.resource_budget.strip())
+        if contract.context_compaction.strip():
+            slots[ConstraintSlot.VERBOSITY.value].append(contract.context_compaction.strip())
+        if contract.persistent_memory.strip():
+            slots[ConstraintSlot.ARTIFACT_REQUIRED.value].append(contract.persistent_memory.strip())
+        if contract.validation_strategy.strip():
+            slots[ConstraintSlot.ARTIFACT_REQUIRED.value].append(contract.validation_strategy.strip())
+        if contract.failure_recovery.strip():
+            slots[ConstraintSlot.SCOPE.value].append(contract.failure_recovery.strip())
+        if contract.autonomy_policy.strip():
+            slots[ConstraintSlot.SCOPE.value].append(contract.autonomy_policy.strip())
+        if contract.rollback_protocol.strip():
+            slots[ConstraintSlot.SCOPE.value].append(contract.rollback_protocol.strip())
+        if contract.escalation_rules.strip():
+            slots[ConstraintSlot.SCOPE.value].append(contract.escalation_rules.strip())
 
         binding = self._binding_instructions(slots)
         contradictions = self._detect_contradictions(body, slots)
@@ -140,6 +158,8 @@ class ConstraintGraphPass:
             ConstraintSlot.FORMAT,
             ConstraintSlot.MUST_CITE,
             ConstraintSlot.ARTIFACT_REQUIRED,
+            ConstraintSlot.SCOPE,
+            ConstraintSlot.EXCLUSIONS,
         ):
             binding.extend(slots.get(slot.value, []))
         return binding

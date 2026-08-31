@@ -12,7 +12,7 @@ from prompt_piper_api.services.requirement_capture import collect_optimization_b
 
 
 class TokenOptimizationEngine:
-    """Five-pass local optimizer for finalized human-approved drafts."""
+    """Five-pass local optimizer: expand for clarity, then denoise and deconflict."""
 
     def __init__(self) -> None:
         self._graph_pass = ConstraintGraphPass()

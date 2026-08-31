@@ -43,6 +43,17 @@ def venv_pip(root: Path | None = None) -> Path:
     return (root or repo_root()) / "apps" / "api" / ".venv" / "bin" / "pip"
 
 
+def _nltk_subprocess_env(extra: dict[str, str] | None = None) -> dict[str, str]:
+    """Env for NLTK child processes.
+
+    NLTK 3.10+ blocks imports under CWD; a repo-local venv sits under that tree,
+    so legitimate site-packages (e.g. regex) are false-positive blocked.
+    """
+    env = {**os.environ, **(extra or {})}
+    env.setdefault("NLTK_DISABLE_IMPORT_SECURITY", "1")
+    return env
+
+
 def is_wordnet_installed(root: Path | None = None) -> bool:
     data_dir = nltk_data_dir(root)
     return (data_dir / "corpora" / "wordnet").is_dir()
@@ -71,7 +82,7 @@ def setup_wordnet(root: Path | None = None) -> bool:
         msg = "Backend venv not found. Run 'make install-api' first."
         raise RuntimeError(msg)
 
-    env = {**os.environ, "NLTK_DATA": str(data_dir)}
+    env = _nltk_subprocess_env({"NLTK_DATA": str(data_dir)})
     subprocess.run(
         [
             str(python),
@@ -142,7 +153,7 @@ def build_vector_index(
         msg = "Backend venv not found. Run 'make install-api' first."
         raise RuntimeError(msg)
 
-    env = {**os.environ, "CUDA_VISIBLE_DEVICES": ""}
+    env = _nltk_subprocess_env({"CUDA_VISIBLE_DEVICES": ""})
     subprocess.run(
         [str(python), "-m", "prompt_piper.lexicon.build_index", "--output", str(output)],
         check=True,

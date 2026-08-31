@@ -2,7 +2,7 @@
 
 | File | Used for |
 |------|----------|
-| `logo.svg` | Header wordmark in `AppLayout.tsx` |
-| `logo-mark.svg` | Favicon and compact icon |
+| `logo.png` | Header wordmark in `AppLayout.tsx` |
+| `logo-mark.png` | Favicon and compact icon |
 
-Prefer SVG for crisp scaling. PNG/WebP work if you update imports in `apps/web/src/components/AppLayout.tsx`.
+Raster wordmark and mark. Keep files small; the previous Inkscape SVG wrappers embedded full-size PNGs and crashed the browser.

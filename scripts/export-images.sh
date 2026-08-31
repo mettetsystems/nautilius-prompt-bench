@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build PromptPiperCode container images and export them for disconnected hosts.
+# Build Nautilius Prompting Workbench container images and export them for disconnected hosts.
 #
 # Usage:
 #   ./scripts/export-images.sh
@@ -29,7 +29,7 @@ usage() {
   cat <<EOF
 Usage: $(basename "$0") [--with-ai] [--output PATH] [--import ARCHIVE]
 
-Build and save PromptPiperCode images as a single Podman archive for offline use.
+Build and save Nautilius Prompting Workbench images as a single Podman archive for offline use.
 
 Options:
   --with-ai         Also pull/save the llama.cpp server image
@@ -124,7 +124,7 @@ podman save -o "${OUT_FILE}" "${images[@]}"
 # Companion manifest for operators moving the bundle offline.
 manifest="${OUT_FILE%.tar}.txt"
 {
-  echo "PromptPiperCode offline image bundle"
+  echo "Nautilius Prompting Workbench offline image bundle"
   echo "created: $(date -Iseconds)"
   echo "host: $(hostname 2>/dev/null || echo unknown)"
   echo "images:"

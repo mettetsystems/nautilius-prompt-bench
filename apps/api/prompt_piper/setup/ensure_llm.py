@@ -21,7 +21,7 @@ from prompt_piper.setup.llama_launcher import (
     wait_for_server,
 )
 
-EnsureMode = Literal["gpu", "cpu_only", "already_running", "skipped"]
+EnsureMode = Literal["gpu", "cpu", "cpu_only", "already_running", "skipped"]
 
 
 @dataclass(frozen=True)
@@ -59,6 +59,10 @@ def _parse_host_port(base_url: str) -> tuple[str, int]:
     return host_port, 8080
 
 
+def _env_lookup(env: dict[str, str], key: str) -> str | None:
+    return env.get(key) or os.getenv(key)
+
+
 def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
     root = repo_root()
     env_file = env_path or (root / ".env")
@@ -68,10 +72,12 @@ def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
         env.get("PROMPT_PIPER_AUTO_START_LLM"),
         default=_truthy(os.getenv("PROMPT_PIPER_AUTO_START_LLM"), default=True),
     )
-    preset = env.get("PROMPT_PIPER_LOCAL_MODEL_PRESET") or os.getenv(
-        "PROMPT_PIPER_LOCAL_MODEL_PRESET"
-    )
+    preset = _env_lookup(env, "PROMPT_PIPER_LOCAL_MODEL_PRESET")
     llm_enabled = _truthy(env.get("PROMPT_PIPER_LLM_ENABLED"), default=True)
+    allow_cpu_llm = _truthy(
+        env.get("PROMPT_PIPER_ALLOW_CPU_LLM"),
+        default=_truthy(os.getenv("PROMPT_PIPER_ALLOW_CPU_LLM"), default=False),
+    )
 
     if preset == "cpu-only" or not llm_enabled:
         os.environ["PROMPT_PIPER_LLM_ENABLED"] = "false"
@@ -101,14 +107,16 @@ def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
         )
 
     gpu = detect_gpu()
-    if gpu is None:
+    cpu_only = gpu is None
+    if cpu_only and not allow_cpu_llm:
         os.environ["PROMPT_PIPER_LLM_ENABLED"] = "false"
         return EnsureLlmResult(
             mode="cpu_only",
             llm_enabled=False,
             message=(
                 "No compatible GPU detected (CUDA/ROCm). Using rule-based CPU mode. "
-                "Install NVIDIA or AMD GPU drivers to enable the local SLM."
+                "Install NVIDIA or AMD GPU drivers to enable the local SLM, or set "
+                "PROMPT_PIPER_ALLOW_CPU_LLM=true to run llama.cpp on CPU."
             ),
         )
 
@@ -122,8 +130,8 @@ def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
             mode="cpu_only",
             llm_enabled=False,
             message=(
-                "GPU detected but no GGUF model found under data/models/. "
-                "Run make setup and download a model, then retry."
+                ("No GGUF model found under data/models/. " if cpu_only else "GPU detected but no GGUF model found under data/models/. ")
+                + "Run make setup and download a model, then retry."
             ),
         )
 
@@ -134,8 +142,8 @@ def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
             mode="cpu_only",
             llm_enabled=False,
             message=(
-                "GPU detected but llama-server was not found on PATH. "
-                "Install llama.cpp or set LLAMA_SERVER=/path/to/llama-server."
+                ("llama-server was not found on PATH. " if cpu_only else "GPU detected but llama-server was not found on PATH. ")
+                + "Install llama.cpp or set LLAMA_SERVER=/path/to/llama-server."
             ),
         )
 
@@ -149,6 +157,7 @@ def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
         gpu=gpu,
         host=host,
         port=port,
+        cpu_only=cpu_only,
     )
     log_path = root / "data" / "llama-server.log"
     process = start_server(config, log_path=log_path)
@@ -170,11 +179,23 @@ def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
         )
 
     os.environ["PROMPT_PIPER_LLM_ENABLED"] = "true"
+    if cpu_only:
+        return EnsureLlmResult(
+            mode="cpu",
+            llm_enabled=True,
+            message=(
+                f"Started {binary.name} on CPU (-ngl {config.gpu_layers}, -c {config.context_size}) "
+                f"using {model_path.name} at {openai_base}."
+            ),
+        )
+
+    assert gpu is not None
     return EnsureLlmResult(
         mode="gpu",
         llm_enabled=True,
         message=(
             f"Started {binary.name} with {gpu.vendor.upper()} GPU ({gpu.name}) "
+            f"(-ngl {config.gpu_layers}, -c {config.context_size}) "
             f"using {model_path.name} at {openai_base}."
         ),
     )
@@ -198,7 +219,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--stop",
         action="store_true",
-        help="Stop a PromptPiperCode-managed llama-server process.",
+        help="Stop a Nautilius-managed llama-server process.",
     )
     args = parser.parse_args(argv)
 

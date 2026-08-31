@@ -10,6 +10,7 @@ export type SessionState =
   | "exported";
 
 export interface OptimizationTargets {
+  clarity?: string | null;
   richness?: string | null;
   density?: string | null;
   efficiency?: string | null;
@@ -17,52 +18,37 @@ export interface OptimizationTargets {
   deconfliction?: string | null;
 }
 
-export interface TechnicalContext {
-  environment: string;
-  integration_points: string[];
-  dependency_policy: string;
-  forbidden_libraries: string[];
-}
-
-export interface CoreTaskScope {
-  task_type: string;
+export interface TaskIdentity {
   objective: string;
-  out_of_scope: string[];
+  task_type: string;
+  environment: string;
+  additional_constraints: string[];
 }
 
-export interface InputsOutputsContracts {
-  inputs: string;
-  output_contract: string;
-  examples: string[];
-}
-
-export interface ArchitecturalRules {
-  design_patterns: string[];
-  coding_style: string;
-  non_functional: string[];
-}
-
-export interface EdgeCasesErrorStrategy {
-  failure_handling: string;
-  bad_inputs: string[];
-  edge_cases: string[];
-}
-
-export interface ResponseFormatting {
-  explanation_level: string;
-  verbosity: string;
-  extra_artifacts: string[];
+export interface AgentContract {
+  definition_of_done: string;
+  change_scope: string;
+  architecture_policy: string;
+  discovery_policy: string;
+  execution_strategy: string;
+  validation_strategy: string;
+  failure_recovery: string;
+  autonomy_policy: string;
+  persistent_memory: string;
+  completion_contract: string;
+  resource_budget: string;
+  tool_safety: string;
+  context_compaction: string;
+  rollback_protocol: string;
+  escalation_rules: string;
+  dependency_security: string;
 }
 
 export interface RequirementCard {
-  technical_context: TechnicalContext;
-  core_task_scope: CoreTaskScope;
-  inputs_outputs_contracts: InputsOutputsContracts;
-  architectural_rules: ArchitecturalRules;
-  edge_cases_error_strategy: EdgeCasesErrorStrategy;
-  response_formatting: ResponseFormatting;
+  task_identity?: TaskIdentity;
+  agent_contract?: AgentContract;
   optimization_targets: OptimizationTargets;
-  unresolved_fields: string[];
+  unresolved_fields?: string[];
 }
 
 export interface ClarificationSuggestionsResponse {
@@ -121,6 +107,7 @@ export interface OptimizationMetrics {
   token_reduction_pct: number;
   constraints_per_token: number;
   targets: {
+    clarity?: number;
     richness: number;
     density: number;
     efficiency: number;
@@ -136,6 +123,7 @@ export interface OptimizationResult {
   changes: {
     removed: string[];
     compressed: string[];
+    clarified?: string[];
     conflicts_resolved: string[];
     precision_improvements: string[];
   };
@@ -159,6 +147,22 @@ export interface PreInferenceMetrics {
   deconfliction_score: number;
   semantic_precision_score: number;
   vague_language_count: number;
+  first_shot_readiness_score?: number;
+  first_shot_ready?: boolean;
+  section_coverage?: number;
+}
+
+export interface FirstShotRisk {
+  code: string;
+  field_name: string | null;
+  message: string;
+}
+
+export interface FirstShotReadiness {
+  ready: boolean;
+  score: number;
+  risks: FirstShotRisk[];
+  checklist: string[];
 }
 
 export type VagueLanguageCategory = "lazy_adjective" | "catch_all_noun";
@@ -390,6 +394,8 @@ export interface SessionDetailResponse {
   manifest_path: string | null;
   generated_files: string[];
   warnings: string[];
+  first_shot_readiness?: FirstShotReadiness | null;
+  quality_gate_warnings?: string[];
 }
 
 export interface RegistryPromptSummary {

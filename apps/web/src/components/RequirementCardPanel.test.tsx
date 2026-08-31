@@ -7,45 +7,54 @@ describe("RequirementCardPanel", () => {
     render(
       <RequirementCardPanel
         card={{
-          technical_context: {
-            environment: "Python 3.12 + FastAPI",
-            integration_points: [],
-            dependency_policy: "",
-            forbidden_libraries: [],
-          },
-          core_task_scope: {
-            task_type: "new feature logic",
+          task_identity: {
             objective: "Add a health endpoint",
-            out_of_scope: [],
+            task_type: "new feature logic",
+            environment: "Python 3.12 + FastAPI",
+            additional_constraints: [],
           },
-          inputs_outputs_contracts: {
-            inputs: "",
-            output_contract: "JSON {status: ok}",
-            examples: [],
-          },
-          architectural_rules: {
-            design_patterns: [],
-            coding_style: "",
-            non_functional: ["O(n) or better"],
-          },
-          edge_cases_error_strategy: {
-            failure_handling: "",
-            bad_inputs: [],
-            edge_cases: [],
-          },
-          response_formatting: {
-            explanation_level: "",
-            verbosity: "",
-            extra_artifacts: [],
+          agent_contract: {
+            definition_of_done: "COMPLETE only with passing tests",
+            change_scope: "",
+            architecture_policy: "",
+            discovery_policy: "",
+            execution_strategy: "",
+            validation_strategy: "",
+            failure_recovery: "",
+            autonomy_policy: "",
+            persistent_memory: "",
+            completion_contract: "",
+            resource_budget: "",
+            tool_safety: "",
+            context_compaction: "",
+            rollback_protocol: "",
+            escalation_rules: "",
+            dependency_security: "",
           },
           optimization_targets: {},
-          unresolved_fields: ["response_formatting.explanation_level"],
+          unresolved_fields: ["agent_contract.change_scope"],
         }}
       />,
     );
 
     expect(screen.getByText("Add a health endpoint")).toBeInTheDocument();
     expect(screen.getByText("Python 3.12 + FastAPI")).toBeInTheDocument();
-    expect(screen.getByText("response_formatting.explanation_level")).toBeInTheDocument();
+    expect(screen.getByText("agent_contract.change_scope")).toBeInTheDocument();
+  });
+
+  it("does not crash when the API returns a legacy card without task_identity", () => {
+    render(
+      <RequirementCardPanel
+        card={{
+          optimization_targets: {},
+          unresolved_fields: [],
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Requirement card unavailable")).toBeInTheDocument();
+    expect(
+      screen.getByText(/older card schema/i),
+    ).toBeInTheDocument();
   });
 });

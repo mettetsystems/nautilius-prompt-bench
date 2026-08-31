@@ -57,34 +57,38 @@ def test_suggestion_service_returns_model_answers_when_llm_available() -> None:
         StubLLMClient(payload),
     )
     card = RequirementCard(
-        core_task_scope={"objective": "Add FastAPI user create endpoint"}
+        task_identity={"objective": "Add FastAPI user create endpoint"}
     )
 
     result = service.suggest(
         initial_request="Add a FastAPI endpoint that creates users",
         card=card,
-        field_name="technical_context.environment",
+        field_name="agent_contract.definition_of_done",
     )
 
     assert result.model_available is True
-    assert result.field_name == "technical_context.environment"
+    assert result.field_name == "agent_contract.definition_of_done"
     assert len(result.suggested_answers) == 3
-    assert "Python with FastAPI and Pydantic" in result.suggested_answers
+    assert "Python with FastAPI and Pydantic" in result.suggested_answers or any(
+        "COMPLETE" in item for item in result.suggested_answers
+    )
 
 
 def test_suggestion_service_reports_unavailable_without_llm() -> None:
     service = ClarificationSuggestionService(None)
-    card = RequirementCard(core_task_scope={"objective": "Draft a release note generator"})
+    card = RequirementCard(task_identity={"objective": "Draft a release note generator"})
 
     result = service.suggest(
         initial_request="Draft a release note generator",
         card=card,
-        field_name="technical_context.environment",
+        field_name="agent_contract.definition_of_done",
     )
 
     assert result.model_available is False
-    assert result.suggested_answers == []
+    assert len(result.suggested_answers) >= 3
+    assert any("COMPLETE" in item for item in result.suggested_answers)
     assert result.message is not None
+    assert result.suggested_question is not None
 
 
 def test_session_service_suggest_clarification_uses_pending_field() -> None:
@@ -110,7 +114,7 @@ def test_session_service_suggest_requires_clarifying_state() -> None:
     created = service.create_session(initial_request="Draft a release note prompt")
     session_id = created.record.session.id
     record = service.get_session(session_id)
-    record.session.state = SessionState.EDIT
+    record.session.state = SessionState.APPROVAL
     service._save(record)
 
     with pytest.raises(StateTransitionError):

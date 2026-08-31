@@ -187,7 +187,7 @@ class PrecisionSuggestionService:
                             "category": finding.category.value,
                             "line": finding.line,
                             "objective": card.objective,
-                            "audience": card.technical_context.environment,
+                            "audience": card.task_identity.environment,
                             "candidates": candidates,
                             "full_prompt_excerpt": body[:2000],
                         }
@@ -251,7 +251,7 @@ class PrecisionSuggestionService:
                             "category": finding.category.value,
                             "line": finding.line,
                             "objective": card.objective,
-                            "audience": card.technical_context.environment,
+                            "audience": card.task_identity.environment,
                             "full_prompt_excerpt": body[:2000],
                         }
                     ),

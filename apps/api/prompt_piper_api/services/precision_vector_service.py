@@ -48,7 +48,7 @@ class PrecisionVectorService:
             finding=finding,
             body=body,
             objective=card.objective,
-            audience=card.technical_context.environment,
+            audience=card.task_identity.environment,
         )
         vector = self._embedding_service().embed_one(query)
         hits = self._index.search(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from prompt_piper_api.domain.agent_contract import CONTRACT_FIELD_NAMES
 from prompt_piper_api.domain.optimization import (
     ConstraintGraph,
     ConstraintSlot,
@@ -10,11 +11,12 @@ from prompt_piper_api.domain.optimization import (
     OptimizationTargetMetrics,
 )
 from prompt_piper_api.domain.requirement_card import RequirementCard
+from prompt_piper_api.services.clarification_question_ranker import is_unspecified_answer
 from prompt_piper_api.services.optimization.constraint_graph_pass import estimate_tokens
 
 
 class OptimizationMetricsCalculator:
-    """Compute the five optimization target scores and aggregate metrics."""
+    """Compute clarity-first target scores and informational token metrics."""
 
     RICHNESS_FIELDS = (
         ConstraintSlot.OBJECTIVE,
@@ -22,6 +24,8 @@ class OptimizationMetricsCalculator:
         ConstraintSlot.SCOPE,
         ConstraintSlot.EXCLUSIONS,
         ConstraintSlot.FORMAT,
+        ConstraintSlot.ARTIFACT_REQUIRED,
+        ConstraintSlot.TOKEN_BUDGET,
     )
 
     def compute(
@@ -33,6 +37,7 @@ class OptimizationMetricsCalculator:
         removed_count: int,
         hard_conflicts: list[DetectedConflict],
         resolved_count: int,
+        card: RequirementCard | None = None,
     ) -> OptimizationMetrics:
         original_tokens = estimate_tokens(original_body)
         optimized_tokens = max(estimate_tokens(optimized_body), 1)
@@ -44,8 +49,14 @@ class OptimizationMetricsCalculator:
         efficiency = self._efficiency_score(original_tokens, optimized_tokens)
         denoising = min(1.0, removed_count / max(removed_count + 1, 1))
         if removed_count == 0:
-            denoising = 0.5 if original_tokens == optimized_tokens else 0.7
+            denoising = 0.7 if original_tokens <= optimized_tokens else 0.5
         deconfliction = self._deconfliction_score(hard_conflicts, resolved_count, graph)
+        clarity = self._clarity_score(
+            card=card,
+            body=optimized_body,
+            richness=richness,
+            deconfliction=deconfliction,
+        )
 
         reduction = 0.0
         if original_tokens > 0:
@@ -57,6 +68,7 @@ class OptimizationMetricsCalculator:
             token_reduction_pct=round(reduction, 2),
             constraints_per_token=round(binding_count / optimized_tokens, 3),
             targets=OptimizationTargetMetrics(
+                clarity=round(clarity, 3),
                 richness=round(richness, 3),
                 density=round(density, 3),
                 efficiency=round(efficiency, 3),
@@ -64,6 +76,35 @@ class OptimizationMetricsCalculator:
                 deconfliction=round(deconfliction, 3),
             ),
         )
+
+    def _clarity_score(
+        self,
+        *,
+        card: RequirementCard | None,
+        body: str,
+        richness: float,
+        deconfliction: float,
+    ) -> float:
+        coverage = 0.0
+        if card is not None:
+            filled = 0
+            for field_name in CONTRACT_FIELD_NAMES:
+                value = card.get_leaf(field_name)
+                if isinstance(value, str) and value.strip() and not is_unspecified_answer(value):
+                    filled += 1
+            coverage = filled / max(len(CONTRACT_FIELD_NAMES), 1)
+        lowered = body.lower()
+        explicitness = 0.0
+        if "complete" in lowered and "partial" in lowered:
+            explicitness += 0.25
+        if ".agent/" in lowered:
+            explicitness += 0.25
+        if "acceptance" in lowered or "evidence" in lowered:
+            explicitness += 0.25
+        if "task identity" in lowered or "definition of done" in lowered:
+            explicitness += 0.25
+        explicitness = min(1.0, explicitness)
+        return min(1.0, 0.45 * coverage + 0.25 * explicitness + 0.15 * richness + 0.15 * deconfliction)
 
     def _richness_score(self, graph: ConstraintGraph) -> float:
         covered = sum(
@@ -73,14 +114,17 @@ class OptimizationMetricsCalculator:
 
     @staticmethod
     def _efficiency_score(original_tokens: int, optimized_tokens: int) -> float:
+        """Reward preserving or expanding meaning; penalize aggressive cuts."""
         if original_tokens == 0:
             return 1.0
-        preserved_ratio = optimized_tokens / original_tokens
-        if preserved_ratio <= 0.6:
+        ratio = optimized_tokens / original_tokens
+        if ratio >= 1.0:
             return 1.0
-        if preserved_ratio >= 1.0:
-            return 0.5
-        return 0.6 + (1.0 - preserved_ratio)
+        if ratio >= 0.9:
+            return 0.9
+        if ratio >= 0.7:
+            return 0.6
+        return 0.3
 
     @staticmethod
     def _deconfliction_score(
@@ -119,6 +163,7 @@ class ApprovalExportPass:
             removed_count=len(removed),
             hard_conflicts=hard_conflicts,
             resolved_count=len(conflicts_resolved),
+            card=card,
         )
 
         return OptimizationResult(
@@ -128,7 +173,8 @@ class ApprovalExportPass:
             metrics=metrics,
             changes=OptimizationChangeLog(
                 removed=removed,
-                compressed=compressed,
+                compressed=[],
+                clarified=compressed,
                 conflicts_resolved=conflicts_resolved,
             ),
             hard_conflicts=hard_conflicts,
@@ -136,7 +182,7 @@ class ApprovalExportPass:
             approved=False,
             passes_completed=[
                 "constraint_graph",
-                "rewrite_compression",
+                "clarity_expansion",
                 "denoising",
                 "deconfliction",
                 "approval_export",

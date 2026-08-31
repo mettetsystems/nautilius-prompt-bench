@@ -14,4 +14,8 @@ if [[ ! -x "${PYTHON}" ]]; then
   exit 1
 fi
 
+# NLTK 3.10+ blocks imports whose path is under CWD. Our venv lives under the
+# repo root, so site-packages (e.g. regex) are false-positive blocked.
+export NLTK_DISABLE_IMPORT_SECURITY="${NLTK_DISABLE_IMPORT_SECURITY:-1}"
+
 exec "${PYTHON}" -m prompt_piper.setup.lexicon_setup "$@"

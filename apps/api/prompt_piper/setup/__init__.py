@@ -1,1 +1,1 @@
-"""Interactive first-run setup for PromptPiperCode."""
+"""Interactive first-run setup for Nautilius Prompting Workbench."""

@@ -1,6 +1,6 @@
 # API package (`apps/api/`)
 
-Python backend for PromptPiperCode. Installed as editable package `prompt-piper-api` with two code roots:
+Python backend for Nautilius Prompting Workbench. Installed as editable package `prompt-piper-api` with two code roots:
 
 | Path | Package | Purpose |
 |------|---------|---------|

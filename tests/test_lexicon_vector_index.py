@@ -81,8 +81,10 @@ def test_precision_vector_service_returns_candidates(vector_index_path: Path) ->
         category=VagueLanguageCategory.CATCH_ALL_NOUN,
         line_number=1,
         line="Summarize the thing for leadership.",
+        start=15,
+        end=20,
     )
-    card = RequirementCard(core_task_scope={"objective": "Weekly engineering status summary"})
+    card = RequirementCard(task_identity={"objective": "Weekly engineering status summary"})
     candidates = service.suggest_candidates(
         finding=finding,
         body=finding.line,
@@ -125,11 +127,13 @@ terms:
         category=VagueLanguageCategory.CATCH_ALL_NOUN,
         line_number=1,
         line="Summarize the thing for leadership.",
+        start=15,
+        end=20,
     )
     result = service.suggest(
         finding=finding,
         body=finding.line,
-        card=RequirementCard(core_task_scope={"objective": "Weekly engineering status summary"}),
+        card=RequirementCard(task_identity={"objective": "Weekly engineering status summary"}),
     )
     assert result.source is PrecisionSuggestionSource.VECTOR
     assert "deliverable" in result.suggested_replacements

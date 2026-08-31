@@ -30,7 +30,7 @@ usage() {
   cat <<EOF
 Usage: $(basename "$0") <cpu|ai> [--preset PRESET]
 
-Install a boot-persistent PromptPiperCode stack via Podman Quadlets + systemd.
+Install a boot-persistent Nautilius Prompting Workbench stack via Podman Quadlets + systemd.
 
   cpu   CPU-only (no local SLM / llama profile)
   ai    Local SLM via compose llama profile (default preset: ${AI_PRESET})

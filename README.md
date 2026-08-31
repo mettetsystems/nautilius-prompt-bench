@@ -1,18 +1,19 @@
 <p align="center">
-  <img src="assets/logo/logo.svg" alt="PromptPiperCode" width="280" />
+  <img src="assets/logo/logo.png" alt="Nautilius Prompting Workbench" width="280" />
 </p>
 
-Local-first **coding prompt** workbench. Design, clarify, edit, finalize, optimize, store, and retrieve coding prompts on your machine across six dimensions. Only a user-approved final prompt may be sent to an external model, and only when you explicitly choose to.
+Local-first **long-horizon coding-agent** prompting workbench. Design, clarify, edit, finalize, optimize for clarity, store, and retrieve agent contracts on your machine. Only a user-approved final prompt may be sent to an external model, and only when you explicitly choose to.
 
 ### Workflow highlights
 
-- **Six coding dimensions** — Technical Context; Core Task & Scope; Inputs/Outputs & Contracts; Architectural Rules; Edge Cases & Errors; Response Formatting.
+- **16-question agent contract** — definition of done, change scope, architecture, discovery, execution, validation, failure recovery, autonomy, persistent `.agent/` memory, completion evidence, budget, tool safety, context compaction, rollback, escalation, and dependency security. Conservative defaults are one click away.
+- **Clarity-first optimization** — expand and deconflict operational rules instead of compressing for token cost. Long-horizon prompts are expected to be large.
 - **Dual export** — rendered `canonical_prompt` / `optimized_prompt` plus structured `coding_prompt_spec.json` and `.yaml`.
-- **Persistent sessions** — progress survives browser refresh and API restarts (`SESSIONS_PATH`, default `./data/sessions/`). **Breaking schema note:** clear `./data/sessions/` after upgrading from the general-purpose card format.
+- **Persistent sessions** — progress survives browser refresh and API restarts (`SESSIONS_PATH`, default `./data/sessions/`). **Breaking schema note:** clear `./data/sessions/` after upgrading from the old six-dimension card format.
 - **Rich clarification** — multi-select quick replies plus custom text; optional **Get model suggestions** per question (CPU-fast ranker by default).
 - **Step navigation** — revisit earlier steps from the workflow stepper; **re-open** edit, similarity, or optimization when you need to change course mid-session.
 - **Closed completed sessions** — exported sessions are read-only for audit; start a new session with **Use as template** from the Complete page.
-- **Binding-aware approval** — the pre-inference gate scores optimized prompts against constraint-graph bindings (not every optional card field), and the optimizer preserves those bindings during token reduction.
+- **Binding-aware approval** — the pre-inference gate scores optimized prompts against constraint-graph bindings (not every optional card field), and the optimizer preserves those bindings while expanding for clarity.
 - **Semantic precision** — regex scoring for vague language on the Optimize step; **Refine precision** merges WordNet/glossary with an optional semantic vector index, then reranks with the local model when available.
 - **Send to model after export** — on the Complete page, optionally run the approved optimized prompt through the local or external model API; responses are saved as `inference_response.txt` beside other artifacts.
 - **Native dev ergonomics** — `make dev-api` probes GPU availability and can auto-start a local llama.cpp server; Vite proxies session API routes correctly during dev.
@@ -34,14 +35,14 @@ Each top-level folder has a **README** describing its files and how they fit tog
 | [`docs/`](docs/README.md) | Architecture and workflow guides | design docs |
 | [`tests/`](tests/README.md) | pytest suite | backend tests |
 | [`demo/`](demo/README.md) | Demo scenario fixtures | `make demo` input |
-| `~/Documents/PromptPiperCode` | Host export root (registry, exports, audit) | production-style paths on Fedora |
+| `~/Documents/Nautilius` | Host export root (registry, exports, audit) | production-style paths on Fedora |
 
 ## Quick start (native dev)
 
 **Prerequisites:** Python 3.12+, Node.js 20+, Make  
 **For local SLM:** NVIDIA/AMD GPU drivers, [`llama-server`](https://github.com/ggerganov/llama.cpp) on `PATH`, and a GGUF under `data/models/`
 
-Run all commands from the **PromptPiperCode repo root**.
+Run all commands from the **Nautilius Prompting Workbench repo root**.
 
 ```bash
 # 1) Environment + Python/Node/WordNet deps
@@ -65,12 +66,18 @@ On **low-VRAM GPUs** (e.g. GTX 1050 2GB), `build-lexicon-index` forces CPU embed
 Run the API and web app in separate terminals (from a host shell where `nvidia-smi` / `rocm-smi` works):
 
 ```bash
-# Terminal 1 — FastAPI on :8000; ensure_llm starts llama-server when GPU + GGUF + binary exist
+# Terminal 1 — FastAPI on :8010 (not PromptPiper's :8000); ensure_llm starts llama-server when GPU + GGUF + binary exist
 make ensure-llm   # optional dry-run of the GPU/model probe
 make dev-api
 
-# Terminal 2 — Vite dev server on :5173; proxies API routes to :8000
+# Terminal 2 — Vite dev server on :5174; proxies API routes to :8010
 make dev-web
+```
+
+Stop both terminals, the managed local model, and any Podman/Quadlet stack from a third shell:
+
+```bash
+make shutdown
 ```
 
 Sessions are written to `./data/sessions/` by default, so you can refresh the browser or restart the API without losing in-progress work. Completed (`exported`) sessions stay immutable; use **Use as template** on the Complete page to iterate in a new session.
@@ -79,7 +86,7 @@ Verify the API:
 
 ```bash
 # Confirm API is listening
-curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8010/health
 
 # Run backend + integration tests
 make test
@@ -87,7 +94,7 @@ make test
 
 ## Fedora setup
 
-PromptPiperCode is developed and tested on Fedora first. Install native dev tools:
+Nautilius Prompting Workbench is developed and tested on Fedora first. Install native dev tools:
 
 ```bash
 # Python 3.12, Node, build tools, Podman
@@ -106,13 +113,13 @@ For PDF/HTML export inside Podman, dependencies are pre-installed in `infra/Cont
 
 ## Podman setup (Fedora, local-first, no cloud)
 
-PromptPiperCode runs entirely through Podman containers. No Docker Desktop, Kubernetes, or cloud services are required for v1.
+Nautilius Prompting Workbench runs entirely through Podman containers. No Docker Desktop, Kubernetes, or cloud services are required for v1.
 
 ### Quick start on Fedora
 
 ```bash
 # Create host export directory for registry + artifacts
-mkdir -p ~/Documents/PromptPiperCode
+mkdir -p ~/Documents/Nautilius
 
 # First-time environment (skip if .env already exists)
 cp .env.example .env
@@ -123,11 +130,11 @@ podman compose -f infra/podman-compose.yml up --build
 
 Then:
 
-1. Open the frontend at http://127.0.0.1:5173
+1. Open the frontend at http://127.0.0.1:5174
 2. Create a prompt session and walk through clarify → edit → finalize → similarity → optimize → approve → export → complete
 3. Use the workflow stepper to review earlier steps; re-open a step if you need to revise before completion
 4. Export artifacts from the session; on **Complete**, optionally **Send to model** to run the optimized prompt
-5. Confirm files appear under `~/Documents/PromptPiperCode/exports/` in a unique timestamped folder
+5. Confirm files appear under `~/Documents/Nautilius/exports/` in a unique timestamped folder
 
 Or use the helper script (creates directories and starts the stack):
 
@@ -140,8 +147,8 @@ Services:
 
 | Service  | URL / port              | Image                          |
 |----------|-------------------------|--------------------------------|
-| Web UI   | http://127.0.0.1:5173   | nginx (built from `Containerfile.web`) |
-| API      | http://127.0.0.1:8000   | python:3.12-slim (built from `Containerfile.api`) |
+| Web UI   | http://127.0.0.1:5174   | nginx (built from `Containerfile.web`) |
+| API      | http://127.0.0.1:8010   | python:3.12-slim (built from `Containerfile.api`) |
 | Postgres | localhost:5432          | `pgvector/pgvector:pg16`       |
 | llama (optional) | localhost:8080  | `llama.cpp` server (`--profile llama`) |
 | worker (optional) | —              | placeholder worker (`--profile worker`) |
@@ -161,9 +168,9 @@ Stop and view logs:
 
 | Host path                         | Container path | Purpose                    |
 |-----------------------------------|----------------|----------------------------|
-| `~/Documents/PromptPiperCode`         | `/exports`     | Registry, exports, audit   |
-| `~/Documents/PromptPiperCode/exports` | `/exports/exports` | Unique artifact folders |
-| `~/Documents/PromptPiperCode/registry`| `/exports/registry` | Git-backed registry  |
+| `~/Documents/Nautilius`         | `/exports`     | Registry, exports, audit   |
+| `~/Documents/Nautilius/exports` | `/exports/exports` | Unique artifact folders |
+| `~/Documents/Nautilius/registry`| `/exports/registry` | Local prompt registry  |
 | `data/model-cache`                | `/models`      | Embedding model cache      |
 | `data/postgres`                   | `/var/lib/postgresql/data` | PostgreSQL files |
 
@@ -173,7 +180,7 @@ Bind mounts use the `:Z` flag for rootless Podman on Fedora (SELinux).
 
 ### Boot-time persistence (Quadlet)
 
-To run PromptPiperCode as user systemd services that start at login/boot:
+To run Nautilius Prompting Workbench as user systemd services that start at login/boot:
 
 ```bash
 # Full install: deps + build + tests + Quadlets + open browser
@@ -205,7 +212,7 @@ SKIP_BUILD=1 make persistent-install-cpu   # or persistent-install-ai
 
 Each export creates a new folder:
 
-`~/Documents/PromptPiperCode/exports/YYYY-MM-DD_HH-MM-SS__{prompt_id}__{safe_slug}/`
+`~/Documents/Nautilius/exports/YYYY-MM-DD_HH-MM-SS__{prompt_id}__{safe_slug}/`
 
 Existing folders are never overwritten; collisions append `__export_002`, `__export_003`, and so on.
 
@@ -215,16 +222,16 @@ Copy `.env.example` to `.env` at the repo root. For container-specific defaults 
 
 | Variable | Default (native) | Podman notes |
 |----------|------------------|--------------|
-| `PROMPT_PIPER_EXPORT_ROOT` | `~/Documents/PromptPiperCode` | `/exports` in API container |
-| `PROMPT_PIPER_HOST_EXPORT_ROOT` | `~/Documents/PromptPiperCode` | Host path recorded in manifests |
-| `PROMPT_PIPER_REGISTRY_ROOT` | `{export_root}/registry` | Git-backed prompt registry |
+| `PROMPT_PIPER_EXPORT_ROOT` | `~/Documents/Nautilius` | `/exports` in API container |
+| `PROMPT_PIPER_HOST_EXPORT_ROOT` | `~/Documents/Nautilius` | Host path recorded in manifests |
+| `PROMPT_PIPER_REGISTRY_ROOT` | `{export_root}/registry` | Local prompt registry |
 | `PROMPT_PIPER_ARTIFACT_ROOT` | `{export_root}/exports` | Unique export folders |
 | `SESSIONS_PATH` | `./data/sessions` | JSON session store (survives API restart) |
 | `PROMPT_PIPER_MODEL_CACHE` | `./data/model-cache` | `/models` in API container |
 | `DATABASE_URL` | SQLite file | Overridden to PostgreSQL in `podman-compose.yml` |
 | `HF_HOME` / `TRANSFORMERS_CACHE` | — | `/models` (embedding downloads) |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `prompt_piper` | Postgres container |
-| `VITE_API_BASE_URL` | `http://127.0.0.1:8000` | Browser → API (build arg for web image) |
+| `VITE_API_BASE_URL` | `http://127.0.0.1:8010` | Browser → API (build arg for web image) |
 | `PROMPT_PIPER_LOCAL_BASE_URL` | `http://127.0.0.1:8080/v1` | Use `http://host.containers.internal:8080/v1` in Podman |
 | `PROMPT_PIPER_EXTERNAL_INFERENCE_ENABLED` | `false` | Keep `false` unless you explicitly opt in |
 | `PROMPT_PIPER_EXTERNAL_API_KEY` | unset | **Never commit**; set only in `.env` |
@@ -255,9 +262,9 @@ podman build -f infra/Containerfile.web -t prompt-piper-web .
 
 ## Local model endpoint setup
 
-PromptPiperCode talks to an **OpenAI-compatible** server for clarification suggestions, draft generation, and optional chat. Clarification **ranking and extraction stay CPU-fast** unless you click **Get model suggestions** or your setup wizard enabled a local model.
+Nautilius Prompting Workbench talks to an **OpenAI-compatible** server for clarification suggestions, draft generation, and optional chat. Clarification **ranking and extraction stay CPU-fast** unless you click **Get model suggestions** or your setup wizard enabled a local model.
 
-`make dev-api` runs `ensure_llm`: it detects GPU memory, can start `llama-server` with a configured GGUF, or falls back to CPU-only mode (rule-based clarification). Stop a managed server with `make llama-down`.
+`make dev-api` runs `ensure_llm`: it detects GPU memory, can start `llama-server` with a configured GGUF, or falls back to CPU-only mode (rule-based clarification). Stop a managed server with `make llama-down`, or stop the whole local app with `make shutdown`.
 
 **Native dev** — in `.env`:
 
@@ -314,7 +321,7 @@ Artifact export uses Markdown as canonical source with optional conversions:
 | HTML | Pandoc (fallback: built-in HTML) | `dnf install pandoc` | included |
 | PDF | WeasyPrint (fallback: Pandoc) | `pip install weasyprint` | included |
 
-Missing tools produce **warnings**, not crashes. Export folders are created under `~/Documents/PromptPiperCode/exports/` (or `PROMPT_PIPER_ARTIFACT_ROOT`); the built-in HTML fallback still produces a readable `optimized_prompt.html` when Pandoc is absent.
+Missing tools produce **warnings**, not crashes. Export folders are created under `~/Documents/Nautilius/exports/` (or `PROMPT_PIPER_ARTIFACT_ROOT`); the built-in HTML fallback still produces a readable `optimized_prompt.html` when Pandoc is absent.
 
 ## Troubleshooting
 
@@ -374,9 +381,9 @@ Models cache under `data/model-cache`. Ensure the directory is writable and you 
 
 ### Web UI cannot reach API
 
-**Native dev:** Vite proxies `/health`, `/sessions`, `/registry`, and `/settings` to the API — keep `make dev-api` running on port 8000. Session workflow URLs (e.g. `/sessions/{id}/edit`, `/sessions/{id}/precision`) are routed to the SPA; matching API paths are never served as `index.html`.
+**Native dev:** Vite proxies `/health`, `/sessions`, `/registry`, and `/settings` to the API — keep `make dev-api` running on port 8010. Session workflow URLs (e.g. `/sessions/{id}/edit`, `/sessions/{id}/precision`) are routed to the SPA; matching API paths are never served as `index.html`.
 
-**Podman:** `VITE_API_BASE_URL` is baked in at **web image build time**. It must be a URL your **browser** can open (typically `http://127.0.0.1:8000`). After changing it, rebuild:
+**Podman:** `VITE_API_BASE_URL` is baked in at **web image build time**. It must be a URL your **browser** can open (typically `http://127.0.0.1:8010`). After changing it, rebuild:
 
 ```bash
 ./scripts/dev-down.sh
@@ -410,12 +417,13 @@ make typecheck    # mypy on API package
 make format       # ruff format
 make eval         # pre-inference quality gate regression suite
 make ensure-llm   # GPU probe + llama-server (also runs via dev-api)
-make llama-down   # stop PromptPiperCode-managed llama-server
+make llama-down   # stop Nautilius-managed llama-server
+make shutdown     # stop API, Vite, llama-server, Podman compose, and Quadlets
 ```
 
 ## Worker container
 
-No separate worker is required for v1. Background tasks (embedding index, artifact generation, registry git commits) run inside the API process. If long-running jobs are added later, a `Containerfile.worker` can be introduced.
+No separate worker is required for v1. Background tasks (embedding index, artifact generation, registry writes) run inside the API process. If long-running jobs are added later, a `Containerfile.worker` can be introduced.
 
 ## Status
 
@@ -429,7 +437,7 @@ Use this checklist to verify a local install. All commands run from the repo roo
 | Workflow step navigation + re-open steps | Done | `test_workflow_reopen.py`, workflow stepper UI |
 | Completed sessions + template flow | Done | `test_workflow_reopen.py`, Complete page |
 | Draft editing + versioning | Done | `test_draft_edit.py` |
-| Registry finalization (Git-backed) | Done | `test_registry_finalize.py` |
+| Registry finalization (local files) | Done | `test_registry_finalize.py` |
 | Similarity index + warnings | Done | `test_similarity_search.py` |
 | Token optimizer + binding-aware quality gate | Done | `test_token_optimizer.py`, `test_optimization_binding.py`, `test_quality_gate.py` |
 | Semantic requirement capture scoring | Done | `test_requirement_capture.py` |

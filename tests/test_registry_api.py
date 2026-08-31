@@ -47,7 +47,7 @@ def test_get_registry_prompt_detail(
     registry = GitRegistryService(registry_path)
     from prompt_piper_api.domain.requirement_card import RequirementCard
 
-    card = RequirementCard(core_task_scope={"objective": "Summarize status updates."})
+    card = RequirementCard(task_identity={"objective": "Summarize status updates."})
     registry.finalize_prompt(
         prompt_id="weekly-status-abc12345",
         version=1,
@@ -71,7 +71,7 @@ def test_get_registry_prompt_detail(
     body = detail.json()
     assert body["metadata"]["title"] == "Weekly Status"
     assert "Summarize the week." in body["canonical_prompt"]
-    assert body["requirement_card"]["core_task_scope"]["objective"] == "Summarize status updates."
+    assert body["requirement_card"]["task_identity"]["objective"] == "Summarize status updates."
 
     metadata = yaml.safe_load(
         (registry_path / "weekly-status-abc12345" / "metadata.yaml").read_text()

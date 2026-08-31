@@ -3,7 +3,7 @@
 ## Repo structure
 
 ```
-PromptPiperCode/
+Nautilius Prompting Workbench/
 ├── apps/
 │   ├── api/
 │   │   ├── prompt_piper_api/     # FastAPI application package
@@ -18,8 +18,8 @@ PromptPiperCode/
 │       └── src/
 │           ├── api/              # HTTP client + TanStack Query hooks
 │           ├── pages/            # Route-level workflow pages
-│           └── components/       # Shared UI (layout, six-dimension card panel)
-├── packages/shared/              # Shared TS types + APP_NAME (PromptPiperCode)
+│           └── components/       # Shared UI (layout, requirement-card panel)
+├── packages/shared/              # Shared TS types + APP_NAME (Nautilius Prompting Workbench)
 ├── demo/                         # Coding-prompt demo scenario YAML
 ├── data/                         # Runtime data (gitignored except .gitkeep)
 ├── infra/                        # Podman Containerfiles, compose, nginx
@@ -29,24 +29,20 @@ PromptPiperCode/
 
 Python package install: `cd apps/api && pip install -e ".[dev]"` (or `make install-api`).
 
-**Breaking schema note:** the nested coding `RequirementCard` is not compatible with older general-purpose session JSON. Clear `./data/sessions/` after upgrading.
+**Breaking schema note:** the 16-question agent-contract `RequirementCard` is not compatible with older six-dimension session JSON. Clear `./data/sessions/` after upgrading.
 
-## Coding RequirementCard
+## RequirementCard (task identity + 16-question agent contract)
 
-Source of truth: `domain/requirement_card.py`. Six nested dimensions drive clarification, draft rendering, capture scoring, and export:
+Source of truth: `domain/requirement_card.py` and `domain/agent_contract.py`. Task identity is extracted from the opening request. Sixteen operational-control questions drive clarification, draft rendering, capture scoring, and export:
 
-| Dimension | Nested model | Leaf examples |
-|-----------|--------------|---------------|
-| Technical Context | `technical_context` | `environment`, `integration_points`, `dependency_policy`, `forbidden_libraries` |
-| Core Task & Scope | `core_task_scope` | `task_type`, `objective`, `out_of_scope` |
-| Inputs, Outputs & Contracts | `inputs_outputs_contracts` | `inputs`, `output_contract`, `examples` |
-| Architectural Rules | `architectural_rules` | `design_patterns`, `coding_style`, `non_functional` |
-| Edge Cases & Errors | `edge_cases_error_strategy` | `failure_handling`, `bad_inputs`, `edge_cases` |
-| Response Formatting | `response_formatting` | `explanation_level`, `verbosity`, `extra_artifacts` |
+| Group | Nested model | Leaf examples |
+|-------|--------------|---------------|
+| Task identity | `task_identity` | `objective`, `task_type`, `environment`, `additional_constraints` |
+| Agent contract | `agent_contract` | `definition_of_done`, `change_scope`, `architecture_policy`, `discovery_policy`, `execution_strategy`, `validation_strategy`, `failure_recovery`, `autonomy_policy`, `persistent_memory`, `completion_contract`, `resource_budget`, `tool_safety`, `context_compaction`, `rollback_protocol`, `escalation_rules`, `dependency_security` |
 
-Clarification and unresolved tracking use **dotted leaf paths** (e.g. `technical_context.environment`). Helpers: `get_leaf`, `set_leaf`, `is_leaf_missing`, `coding_spec_dict()`.
+Clarification and unresolved tracking use **dotted leaf paths** (e.g. `agent_contract.definition_of_done`). Helpers: `get_leaf`, `set_leaf`, `is_leaf_missing`, `coding_spec_dict()`.
 
-`DraftGenerator` emits six matching plain-text sections with underline headers. `format_checker.format_adherence_score` expects those section titles.
+`DraftGenerator` emits Task Identity plus sixteen matching plain-text sections with underline headers. `format_checker.format_adherence_score` expects those section titles. The optimizer rebuilds the same contract for clarity rather than compressing for token cost.
 
 ## Backend services
 
@@ -54,17 +50,18 @@ Clarification and unresolved tracking use **dotted leaf paths** (e.g. `technical
 |---------|--------|----------------|
 | `SessionService` | `services/session_service.py` | State machine orchestration |
 | `RequirementCardExtractor` | `services/requirement_card_extractor.py` | Parse initial request and clarification answers into coding leaves |
-| `ClarificationQuestionRanker` | `services/clarification_question_ranker.py` | Rank and format coding-dimension questions |
-| `DraftGenerator` | `services/draft_generator.py` | Build six-section plain-text draft from RequirementCard |
+| `ClarificationQuestionRanker` | `services/clarification_question_ranker.py` | Rank and format the 16 agent-contract questions |
+| `DraftGenerator` | `services/draft_generator.py` | Build 17-section plain-text contract from RequirementCard |
 | `DraftPatchService` | `services/draft_patch_service.py` | Apply edit instructions to card + body |
-| `GitRegistryService` | `services/git_registry_service.py` | Write/list registry files; Git commits; coding specs |
+| `GitRegistryService` | `services/git_registry_service.py` | Write/list local registry files and coding specs |
 | `SimilarityCheckService` | `services/similarity_check_service.py` | Embed, retrieve, index on finalize |
 | `HybridRetrievalService` | `services/hybrid_retrieval_service.py` | Lexical + vector retrieval with MMR |
 | `EmbeddingService` | `services/embedding_service.py` | Local sentence-transformers or hash fallback |
-| `TokenOptimizationEngine` | `services/optimization/engine.py` | Five-pass token optimizer |
+| `TokenOptimizationEngine` | `services/optimization/engine.py` | Five-pass optimizer → clarity-expanded 17-section contract |
+| `harness_prompt_builder` / `api_pack_export` | `services/harness_prompt_builder.py`, `api_pack_export.py` | Harness + OpenAI/Anthropic/Gemini/Cursor/Copilot/Continue packs |
 | `QualityGateService` | `services/quality_gate_service.py` | Pre-inference approval gate |
 | `PreInferenceMetricsService` | `services/pre_inference_metrics_service.py` | Deterministic quality metrics |
-| `ArtifactService` / `ArtifactExportService` | `services/artifact_*.py` | Export rendered prompts + `coding_prompt_spec` + manifest |
+| `ArtifactService` / `ArtifactExportService` | `services/artifact_*.py` | Export prompts + coding_prompt_spec + harness + API pack |
 | `ExternalInferenceService` | `services/external_inference_service.py` | Gated external model dispatch |
 | `AuditLogService` | `services/audit_log_service.py` | Append-only JSONL audit log |
 
@@ -80,7 +77,7 @@ React 18 + Vite + TypeScript. Routing in `apps/web/src/App.tsx`:
 |-------|------|---------------|
 | `/` | Dashboard | Recent sessions; delete removes the session file |
 | `/sessions/new` | NewSessionPage | Initial prompt |
-| `/sessions/:id/clarify` | ClarificationPage | Answer dimension questions |
+| `/sessions/:id/clarify` | ClarificationPage | Answer 16 contract questions |
 | `/sessions/:id/edit` | DraftEditorPage | Edit draft |
 | `/sessions/:id/similarity` | SimilarityCheckPage | Review matches |
 | `/sessions/:id/optimize` | OptimizationPage | Optimize + approve |
@@ -90,7 +87,7 @@ React 18 + Vite + TypeScript. Routing in `apps/web/src/App.tsx`:
 
 `SessionWorkflowPage` redirects `/sessions/:id` to the correct step based on `session.state`.
 
-API layer: `apps/web/src/api/` — typed HTTP client, TanStack Query hooks (`useSession`, `useCreateSession`, etc.), nested `RequirementCard` types aligned with backend schemas. Product name: `APP_NAME = "PromptPiperCode"` in `@prompt-piper/shared`.
+API layer: `apps/web/src/api/` — typed HTTP client, TanStack Query hooks (`useSession`, `useCreateSession`, etc.), nested `RequirementCard` types aligned with backend schemas. Product name: `APP_NAME = "Nautilius Prompting Workbench"` in `@prompt-piper/shared`.
 
 Run dev server: `make dev-web` (proxies to `VITE_API_BASE_URL`).
 
@@ -114,7 +111,7 @@ Key test modules:
 |------|----------|
 | `test_session_state_machine.py` | State transitions, finalize guards |
 | `test_clarification_loop.py` | Clarification loop, unspecified handling, dotted leaf fields |
-| `test_draft_generator.py` | Six-section plain-text contract, no hallucination |
+| `test_draft_generator.py` | 17-section plain-text contract, no hallucination |
 | `test_draft_edit.py` | Edit intents, version increments |
 | `test_token_optimizer.py` | Optimizer passes, approval blocking |
 | `test_quality_gate.py` | Metrics thresholds, regression eval |
@@ -127,11 +124,11 @@ Key test modules:
 
 Use `tmp_path` fixtures for isolated registry/artifact directories. Similarity tests use `EmbeddingService(prefer_fallback=True)`.
 
-Regression cases: `tests/evals/regression_cases.yaml` — nested coding cards + six-section baseline bodies, consumed by `prompt_piper.eval`.
+Regression cases: `tests/evals/regression_cases.yaml` — task-identity + agent-contract cards and 17-section baseline bodies, consumed by `prompt_piper.eval`.
 
 ## Local model config
 
-PromptPiperCode uses an **OpenAI-compatible HTTP API** for optional LLM-assisted clarification, extraction, and draft generation.
+The workbench uses an **OpenAI-compatible HTTP API** for optional LLM-assisted clarification, extraction, and draft generation.
 
 Environment variables (`.env`):
 
@@ -141,7 +138,10 @@ PROMPT_PIPER_LOCAL_BASE_URL=http://127.0.0.1:8080/v1
 PROMPT_PIPER_LOCAL_CHAT_MODEL=llama
 PROMPT_PIPER_LOCAL_EMBED_MODEL=llama
 # PROMPT_PIPER_LOCAL_API_KEY=optional
-PROMPT_PIPER_MODEL_PROFILE=compatibility   # temperature/max_tokens preset
+PROMPT_PIPER_MODEL_PROFILE=compatibility   # temperature/max_tokens preset (also size-aware via LOCAL_MODEL_PRESET)
+# PROMPT_PIPER_LLM_TIMEOUT_SECONDS=120     # HTTP timeout for slow local SLMs
+# PROMPT_PIPER_ALLOW_CPU_LLM=true          # start llama.cpp on CPU when no GPU
+# PROMPT_PIPER_LLAMA_N_CTX / PROMPT_PIPER_LLAMA_GPU_LAYERS  # omit to auto-tune from VRAM
 ```
 
 Client factory: `llm/factory.py` → `create_llm_client_from_env()`.
@@ -212,15 +212,16 @@ Optional formats should set `optional: true` in the manifest and append human-re
 ```bash
 make dev-api
 # uvicorn prompt_piper_api.main:app --reload
+# Stop with make shutdown (also stops Vite, llama-server, Podman, Quadlets)
 ```
 
-OpenAPI docs: http://127.0.0.1:8000/docs (title: **PromptPiperCode API**).
+OpenAPI docs: http://127.0.0.1:8000/docs (title: **Nautilius Prompting Workbench API**).
 
 ## Code conventions
 
 - Pydantic v2 models in `domain/`; no ORM on session state (in-memory / file `SessionRecord` for v1).
 - Services raise `StateTransitionError` for invalid workflow actions; routes map to HTTP 409.
-- Draft bodies are **plain text** with the six coding-dimension underline-style section headers, not Markdown headings (format checker enforces this).
+- Draft bodies are **plain text** with Task Identity plus sixteen operational-control underline-style section headers, not Markdown headings (format checker enforces this).
 - Use `UNSPECIFIED = "unspecified"` constant from `draft_generator.py` for missing fields.
 - Prefer dotted leaf paths for clarification and unresolved tracking.
 - Ruff + mypy enforced via Makefile; match existing import and naming patterns.

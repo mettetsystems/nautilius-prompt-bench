@@ -1,8 +1,8 @@
-# PromptPiperCode FastAPI backend.
+# Nautilius Prompting Workbench FastAPI backend.
 # Build first: podman build -f infra/Containerfile.api -t localhost/prompt-piper-api:latest .
 
 [Unit]
-Description=PromptPiperCode API
+Description=Nautilius Prompting Workbench API
 After=network-online.target prompt-piper-postgres.service
 Wants=network-online.target
 Requires=prompt-piper-postgres.service
@@ -13,12 +13,12 @@ Image=localhost/prompt-piper-api:latest
 ContainerName=prompt-piper-api
 Network=prompt-piper.network
 PublishPort=127.0.0.1:8000:8000
-EnvironmentFile=%h/PromptPiperCode/.env
+EnvironmentFile=%h/nautilius-prompt-bench/.env
 Environment=API_HOST=0.0.0.0
 Environment=API_PORT=8000
 Environment=DATABASE_URL=postgresql+psycopg://prompt_piper:prompt_piper@prompt-piper-postgres:5432/prompt_piper
 Environment=PROMPT_PIPER_EXPORT_ROOT=/exports
-Environment=PROMPT_PIPER_HOST_EXPORT_ROOT=%h/Documents/PromptPiperCode
+Environment=PROMPT_PIPER_HOST_EXPORT_ROOT=%h/Documents/Nautilius
 Environment=PROMPT_PIPER_REGISTRY_ROOT=/exports/registry
 Environment=PROMPT_PIPER_ARTIFACT_ROOT=/exports/exports
 Environment=PROMPT_PIPER_MODEL_CACHE=/models
@@ -28,8 +28,8 @@ Environment=SENTENCE_TRANSFORMERS_HOME=/models
 Environment=AUDIT_LOG_PATH=/exports/audit
 Environment=PROMPT_PIPER_EXTERNAL_INFERENCE_ENABLED=false
 Environment=PROMPT_PIPER_EXTERNAL_ENABLED=false
-Volume=%h/Documents/PromptPiperCode:/exports:Z
-Volume=%h/PromptPiperCode/data/model-cache:/models:Z
+Volume=%h/Documents/Nautilius:/exports:Z
+Volume=%h/nautilius-prompt-bench/data/model-cache:/models:Z
 PodmanArgs=--add-host=host.containers.internal:host-gateway
 HealthCmd=python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"
 HealthInterval=15s

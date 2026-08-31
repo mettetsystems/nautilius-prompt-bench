@@ -12,6 +12,7 @@ class ErrorCode(StrEnum):
     INVALID_STATE = "invalid_state"
     VALIDATION_ERROR = "validation_error"
     QUALITY_GATE_FAILED = "quality_gate_failed"
+    FIRST_SHOT_RISK = "first_shot_risk"
     INFERENCE_BLOCKED = "inference_blocked"
     INFERENCE_FAILED = "inference_failed"
     LLM_UNAVAILABLE = "llm_unavailable"

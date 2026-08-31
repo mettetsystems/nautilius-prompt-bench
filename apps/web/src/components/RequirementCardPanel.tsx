@@ -1,4 +1,4 @@
-import type { RequirementCard } from "../api/types";
+import type { AgentContract, RequirementCard } from "../api/types";
 
 interface RequirementCardPanelProps {
   card: RequirementCard;
@@ -50,62 +50,70 @@ function DimensionGroup({
   );
 }
 
+const CONTRACT_FIELDS: { key: keyof AgentContract; label: string }[] = [
+  { key: "definition_of_done", label: "Definition of done" },
+  { key: "change_scope", label: "Change scope" },
+  { key: "architecture_policy", label: "Architecture policy" },
+  { key: "discovery_policy", label: "Discovery policy" },
+  { key: "execution_strategy", label: "Execution strategy" },
+  { key: "validation_strategy", label: "Validation strategy" },
+  { key: "failure_recovery", label: "Failure recovery" },
+  { key: "autonomy_policy", label: "Autonomy policy" },
+  { key: "persistent_memory", label: "Persistent memory" },
+  { key: "completion_contract", label: "Completion contract" },
+  { key: "resource_budget", label: "Resource budget" },
+  { key: "tool_safety", label: "Tool safety" },
+  { key: "context_compaction", label: "Context compaction" },
+  { key: "rollback_protocol", label: "Rollback protocol" },
+  { key: "escalation_rules", label: "Escalation rules" },
+  { key: "dependency_security", label: "Dependency and security" },
+];
+
 export function RequirementCardPanel({
   card,
-  title = "Coding dimensions",
+  title = "Agent contract",
 }: RequirementCardPanelProps) {
-  const tech = card.technical_context;
-  const task = card.core_task_scope;
-  const io = card.inputs_outputs_contracts;
-  const arch = card.architectural_rules;
-  const edge = card.edge_cases_error_strategy;
-  const fmt = card.response_formatting;
+  const task = card.task_identity;
+  const contract = card.agent_contract;
+  const unresolved = card.unresolved_fields ?? [];
+
+  if (!task || !contract) {
+    return (
+      <aside className="panel side-panel">
+        <h2>{title}</h2>
+        <div className="callout callout-warn">
+          <strong>Requirement card unavailable</strong>
+          <p>
+            This session was saved with an older card schema, so the page cannot
+            render it. Start a new session from the same initial prompt, and run
+            the API from this workspace with make dev-api.
+          </p>
+        </div>
+      </aside>
+    );
+  }
 
   return (
     <aside className="panel side-panel">
       <h2>{title}</h2>
-      {card.unresolved_fields.length > 0 && (
+      {unresolved.length > 0 && (
         <div className="callout callout-warn">
           <strong>Unresolved</strong>
-          <p>{card.unresolved_fields.join(", ")}</p>
+          <p>{unresolved.join(", ")}</p>
         </div>
       )}
 
-      <DimensionGroup heading="1. Technical Context">
-        <FieldBlock label="Environment" value={tech.environment} />
-        <ListBlock label="Integration points" items={tech.integration_points} />
-        <FieldBlock label="Dependency policy" value={tech.dependency_policy} />
-        <ListBlock label="Forbidden libraries" items={tech.forbidden_libraries} />
-      </DimensionGroup>
-
-      <DimensionGroup heading="2. Core Task & Scope">
-        <FieldBlock label="Task type" value={task.task_type} />
+      <DimensionGroup heading="Task Identity">
         <FieldBlock label="Objective" value={task.objective} />
-        <ListBlock label="Out of scope" items={task.out_of_scope} />
+        <FieldBlock label="Task type" value={task.task_type} />
+        <FieldBlock label="Environment" value={task.environment} />
+        <ListBlock label="Additional constraints" items={task.additional_constraints} />
       </DimensionGroup>
 
-      <DimensionGroup heading="3. Inputs, Outputs & Contracts">
-        <FieldBlock label="Inputs" value={io.inputs} />
-        <FieldBlock label="Output contract" value={io.output_contract} />
-        <ListBlock label="Examples" items={io.examples} />
-      </DimensionGroup>
-
-      <DimensionGroup heading="4. Architectural Rules">
-        <ListBlock label="Design patterns" items={arch.design_patterns} />
-        <FieldBlock label="Coding style" value={arch.coding_style} />
-        <ListBlock label="Non-functional" items={arch.non_functional} />
-      </DimensionGroup>
-
-      <DimensionGroup heading="5. Edge Cases & Errors">
-        <FieldBlock label="Failure handling" value={edge.failure_handling} />
-        <ListBlock label="Bad inputs" items={edge.bad_inputs} />
-        <ListBlock label="Edge cases" items={edge.edge_cases} />
-      </DimensionGroup>
-
-      <DimensionGroup heading="6. Response Formatting">
-        <FieldBlock label="Explanation level" value={fmt.explanation_level} />
-        <FieldBlock label="Verbosity" value={fmt.verbosity} />
-        <ListBlock label="Extra artifacts" items={fmt.extra_artifacts} />
+      <DimensionGroup heading="Operational control (16 questions)">
+        {CONTRACT_FIELDS.map((field) => (
+          <FieldBlock key={field.key} label={field.label} value={contract[field.key]} />
+        ))}
       </DimensionGroup>
     </aside>
   );

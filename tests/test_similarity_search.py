@@ -84,7 +84,7 @@ def test_similarity_score_threshold_triggers_warning(
         "Technical Context: include risks and next steps.\n"
         "Output contract: bulleted summary."
     )
-    card = RequirementCard(core_task_scope={"objective": "Weekly status summary"})
+    card = RequirementCard(task_identity={"objective": "Weekly status summary"})
     artifact_paths = {"canonical_txt": "canonical_prompt.txt"}
 
     similarity_service.check_and_index(
@@ -113,7 +113,7 @@ def test_similarity_score_threshold_triggers_warning(
 
 
 def test_lower_similarity_does_not_warn(similarity_service: SimilarityCheckService) -> None:
-    card = RequirementCard(core_task_scope={"objective": "Different objectives"})
+    card = RequirementCard(task_identity={"objective": "Different objectives"})
     artifact_paths = {"canonical_txt": "canonical_prompt.txt"}
 
     similarity_service.check_and_index(
@@ -150,9 +150,9 @@ def test_three_documents_are_indexed_per_finalized_prompt(
         body="Core Task and Scope: draft onboarding checklist for new hires.",
         abstract="Onboarding checklist",
         requirement_card=RequirementCard(
-            core_task_scope={"objective": "Onboarding checklist"},
-            architectural_rules={
-                "non_functional": ["Cover first-week tasks", "Keep it concise"],
+            task_identity={
+                "objective": "Onboarding checklist",
+                "additional_constraints": ["Cover first-week tasks", "Keep it concise"],
             },
         ),
         artifact_paths={"canonical_txt": "canonical_prompt.txt"},
@@ -175,7 +175,7 @@ def test_prior_prompt_metadata_is_returned(similarity_service: SimilarityCheckSe
         title="Customer interview summary",
         body=body,
         abstract="Interview summary",
-        requirement_card=RequirementCard(core_task_scope={"objective": "Interview summary"}),
+        requirement_card=RequirementCard(task_identity={"objective": "Interview summary"}),
         artifact_paths=artifact_paths,
     )
 
@@ -185,7 +185,7 @@ def test_prior_prompt_metadata_is_returned(similarity_service: SimilarityCheckSe
         title="Customer interview summary v2",
         body=body,
         abstract="Interview summary",
-        requirement_card=RequirementCard(core_task_scope={"objective": "Interview summary"}),
+        requirement_card=RequirementCard(task_identity={"objective": "Interview summary"}),
         artifact_paths=artifact_paths,
     )
 
@@ -199,7 +199,7 @@ def test_prior_prompt_metadata_is_returned(similarity_service: SimilarityCheckSe
 
 def test_finalize_runs_similarity_check(service: SessionService) -> None:
     session_id = _enter_edit_state(service)
-    result = service.finalize(session_id)
+    result = service.finalize(session_id, acknowledge_first_shot_risk=True)
 
     assert result.prompt_id
     assert result.similarity_result is not None

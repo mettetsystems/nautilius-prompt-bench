@@ -1,8 +1,8 @@
-# PromptPiperCode React/Vite frontend (nginx).
+# Nautilius Prompting Workbench React/Vite frontend (nginx).
 # Build first: see README for web image build command.
 
 [Unit]
-Description=PromptPiperCode Web UI
+Description=Nautilius Prompting Workbench Web UI
 After=network-online.target prompt-piper-api.service
 Wants=network-online.target
 Requires=prompt-piper-api.service

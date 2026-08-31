@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import re
 import shutil
-import subprocess
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -22,9 +21,6 @@ from prompt_piper_api.services.exceptions import InvalidPromptIdError, RegistryW
 from prompt_piper_api.services.path_safety import safe_child_path, validate_prompt_id
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
-_GIT_UNAVAILABLE = (
-    "Git is not available; registry files were written without version control."
-)
 
 _ARTIFACT_PATHS = {
     "metadata": "metadata.yaml",
@@ -62,7 +58,7 @@ def _isoformat(value: datetime) -> str:
 
 
 class GitRegistryService:
-    """Write finalized prompts to the local Git-backed registry."""
+    """Write finalized prompts to a local directory on this installation."""
 
     def __init__(self, registry_path: Path) -> None:
         self._registry_path = registry_path
@@ -94,7 +90,7 @@ class GitRegistryService:
         now = datetime.now(tz=UTC)
         resolved_abstract = abstract or _derive_abstract(requirement_card, body)
         resolved_output_form = (
-            output_form or requirement_card.inputs_outputs_contracts.output_contract
+            output_form or requirement_card.agent_contract.completion_contract
         )
         metadata = RegistryMetadata(
             prompt_id=prompt_id,
@@ -103,7 +99,7 @@ class GitRegistryService:
             abstract=resolved_abstract,
             tags=list(tags or []),
             domain=domain or "coding",
-            task_family=task_family or requirement_card.core_task_scope.task_type,
+            task_family=task_family or requirement_card.task_identity.task_type,
             output_form=resolved_output_form,
             target_provider=target_provider,
             target_model=target_model,
@@ -133,23 +129,13 @@ class GitRegistryService:
         )
         _ = staging_dir  # staging renamed into prompt_dir
 
-        warnings: list[str] = []
-        git_commit_sha: str | None = None
-        init_warning = self.ensure_git_repo()
-        if init_warning:
-            warnings.append(init_warning)
-        else:
-            git_commit_sha, commit_warning = self._commit_prompt(prompt_id, version)
-            if commit_warning:
-                warnings.append(commit_warning)
-
         return RegistryWriteResult(
             prompt_id=prompt_id,
             version=version,
             prompt_dir=prompt_dir,
             metadata=metadata,
-            git_commit_sha=git_commit_sha,
-            warning="; ".join(warnings) if warnings else None,
+            git_commit_sha=None,
+            warning=None,
         )
 
     def _write_atomic(
@@ -192,44 +178,6 @@ class GitRegistryService:
             raise
         return prompt_dir
 
-    def ensure_git_repo(self) -> str | None:
-        """Initialize Git in the registry directory when needed."""
-        self._registry_path.mkdir(parents=True, exist_ok=True)
-        if (self._registry_path / ".git").exists():
-            return None
-
-        init = self._run_git("init", cwd=self._registry_path)
-        if init is None:
-            return _GIT_UNAVAILABLE
-        if init.returncode != 0:
-            detail = init.stderr.strip() or init.stdout.strip()
-            return f"Git init failed: {detail}"
-
-        self._run_git("config", "user.email", "prompt-piper@local", cwd=self._registry_path)
-        self._run_git("config", "user.name", "PromptPiperCode", cwd=self._registry_path)
-        return None
-
-    def _commit_prompt(self, prompt_id: str, version: int) -> tuple[str | None, str | None]:
-        add = self._run_git("add", prompt_id, cwd=self._registry_path)
-        if add is None:
-            return None, _GIT_UNAVAILABLE
-        if add.returncode != 0:
-            detail = add.stderr.strip() or add.stdout.strip()
-            return None, f"Git add failed: {detail}"
-
-        message = f"Finalize prompt {prompt_id} version {version}"
-        commit = self._run_git("commit", "-m", message, cwd=self._registry_path)
-        if commit is None:
-            return None, _GIT_UNAVAILABLE
-        if commit.returncode != 0:
-            detail = commit.stderr.strip() or commit.stdout.strip()
-            return None, f"Git commit failed: {detail}"
-
-        show = self._run_git("rev-parse", "HEAD", cwd=self._registry_path)
-        if show is None or show.returncode != 0:
-            return None, None
-        return show.stdout.strip(), None
-
     def update_artifact_paths(
         self,
         prompt_id: str,
@@ -269,9 +217,7 @@ class GitRegistryService:
             encoding="utf-8",
         )
         temp_path.replace(metadata_path)
-
-        _, commit_warning = self._commit_prompt(prompt_id, current_version)
-        return commit_warning
+        return None
 
     def load_metadata(self, prompt_id: str) -> RegistryMetadata | None:
         try:
@@ -364,18 +310,6 @@ class GitRegistryService:
             payload.model_dump_json(indent=2),
             encoding="utf-8",
         )
-
-    def _run_git(self, *args: str, cwd: Path) -> subprocess.CompletedProcess[str] | None:
-        try:
-            return subprocess.run(
-                ["git", *args],
-                cwd=cwd,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-        except FileNotFoundError:
-            return None
 
 
 def _derive_abstract(card: RequirementCard, body: str) -> str:

@@ -17,11 +17,15 @@ class PreInferenceMetrics(BaseModel):
     deconfliction_score: float = Field(ge=0.0, le=1.0)
     semantic_precision_score: float = Field(default=1.0, ge=0.0, le=1.0)
     vague_language_count: int = Field(default=0, ge=0)
+    first_shot_readiness_score: float = Field(default=1.0, ge=0.0, le=1.0)
+    first_shot_ready: bool = Field(default=True)
+    section_coverage: int = Field(default=0, ge=0)
 
 
 class QualityGateResult(BaseModel):
     passed: bool
     failures: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
     metrics: PreInferenceMetrics
     regression_loss_rate: float | None = None
     regression_cases_run: int = 0

@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     )
 
     api_host: str = Field(default="127.0.0.1", alias="API_HOST")
-    api_port: int = Field(default=8000, alias="API_PORT")
+    api_port: int = Field(default=8010, alias="API_PORT")
 
     database_url: str = Field(
         default="sqlite:///./data/prompt_piper.db",
@@ -56,11 +56,11 @@ class Settings(BaseSettings):
     )
 
     prompt_piper_export_root: Path = Field(
-        default_factory=lambda: Path.home() / "Documents" / "PromptPiperCode",
+        default_factory=lambda: Path.home() / "Documents" / "Nautilius",
         alias="PROMPT_PIPER_EXPORT_ROOT",
     )
     prompt_piper_host_export_root: Path = Field(
-        default_factory=lambda: Path.home() / "Documents" / "PromptPiperCode",
+        default_factory=lambda: Path.home() / "Documents" / "Nautilius",
         alias="PROMPT_PIPER_HOST_EXPORT_ROOT",
     )
     prompt_piper_registry_root: Path | None = Field(
@@ -130,6 +130,19 @@ class Settings(BaseSettings):
     prompt_piper_model_profile: ModelProfile = Field(
         default=ModelProfile.COMPATIBILITY,
         alias="PROMPT_PIPER_MODEL_PROFILE",
+    )
+    prompt_piper_llm_timeout_seconds: float = Field(
+        default=120.0,
+        ge=5.0,
+        alias="PROMPT_PIPER_LLM_TIMEOUT_SECONDS",
+    )
+    prompt_piper_local_model_preset: str | None = Field(
+        default=None,
+        alias="PROMPT_PIPER_LOCAL_MODEL_PRESET",
+    )
+    prompt_piper_allow_cpu_llm: bool = Field(
+        default=False,
+        alias="PROMPT_PIPER_ALLOW_CPU_LLM",
     )
 
     prompt_piper_embedding_model: str = Field(

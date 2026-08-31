@@ -2,6 +2,10 @@ import textwrap
 
 from pydantic import BaseModel, Field, field_validator
 
+from prompt_piper_api.domain.agent_contract import (
+    CONTRACT_FIELD_NAMES,
+    quick_reply_labels,
+)
 from prompt_piper_api.domain.limits import MAX_CLARIFICATION_QUESTIONS
 from prompt_piper_api.domain.requirement_card import LEAF_FIELD_NAMES, RequirementCard
 from prompt_piper_api.llm.base import LLMClient
@@ -17,189 +21,52 @@ from prompt_piper_api.services.clarification_prompts import (
 
 REQUIRED_CLARIFICATION_COUNT = MAX_CLARIFICATION_QUESTIONS
 
-CLARIFICATION_FIELD_PRIORITY: tuple[str, ...] = (
-    "core_task_scope.objective",
-    "core_task_scope.task_type",
-    "technical_context.environment",
-    "inputs_outputs_contracts.output_contract",
-    "inputs_outputs_contracts.inputs",
-    "architectural_rules.coding_style",
-    "architectural_rules.non_functional",
-    "edge_cases_error_strategy.failure_handling",
-    "core_task_scope.out_of_scope",
-    "technical_context.dependency_policy",
-    "technical_context.integration_points",
-    "architectural_rules.design_patterns",
-    "edge_cases_error_strategy.bad_inputs",
-    "edge_cases_error_strategy.edge_cases",
-    "response_formatting.explanation_level",
-    "response_formatting.verbosity",
-    "response_formatting.extra_artifacts",
-    "inputs_outputs_contracts.examples",
-    "technical_context.forbidden_libraries",
-    "optimization_targets",
+# Sixteen operational-control questions in the long-horizon contract order.
+CLARIFICATION_FIELD_PRIORITY: tuple[str, ...] = CONTRACT_FIELD_NAMES
+
+# Task identity is extracted from the initial request. Optimization targets are
+# fixed to clarity-first and are not queued as questions.
+DEFERRED_CLARIFICATION_FIELDS: frozenset[str] = frozenset(
+    {
+        "task_identity.objective",
+        "task_identity.task_type",
+        "task_identity.environment",
+        "task_identity.additional_constraints",
+        "optimization_targets",
+    }
 )
 
 REFINEMENT_FIELD_PRIORITY: tuple[str, ...] = (
-    "inputs_outputs_contracts.output_contract",
-    "architectural_rules.non_functional",
-    "edge_cases_error_strategy.failure_handling",
-    "response_formatting.explanation_level",
-    "technical_context.integration_points",
-    "inputs_outputs_contracts.examples",
-    "edge_cases_error_strategy.edge_cases",
+    "agent_contract.definition_of_done",
+    "agent_contract.validation_strategy",
+    "agent_contract.completion_contract",
+    "agent_contract.failure_recovery",
+    "agent_contract.resource_budget",
+    "agent_contract.persistent_memory",
 )
 
 QUICK_REPLY_OPTIONS: dict[str, tuple[str, ...]] = {
-    "core_task_scope.objective": (
-        "implement a new feature",
-        "refactor for performance or clarity",
-        "debug a failing behavior",
-        "generate a test suite",
-        "unspecified",
-    ),
-    "core_task_scope.task_type": (
-        "new feature logic",
-        "refactor legacy code",
-        "debugging an issue",
-        "generating tests",
-        "unspecified",
-    ),
-    "core_task_scope.out_of_scope": (
-        "no unrelated refactors",
-        "no dependency upgrades",
-        "no UI or docs changes",
-        "no speculative features",
-        "unspecified",
-    ),
-    "technical_context.environment": (
-        "Python 3.12 with FastAPI and Pydantic v2",
-        "TypeScript with React and Vite",
-        "Go with standard library only",
-        "match the existing repo stack",
-        "unspecified",
-    ),
-    "technical_context.integration_points": (
-        "existing service and route names",
-        "shared types and schemas",
-        "database models and migrations",
-        "no specific symbols required",
-        "unspecified",
-    ),
-    "technical_context.dependency_policy": (
-        "standard library only",
-        "allow already-used packages",
-        "may add well-known packages",
-        "prefer existing project deps",
-        "unspecified",
-    ),
-    "technical_context.forbidden_libraries": (
-        "no new heavy frameworks",
-        "no deprecated packages",
-        "no GPL-only dependencies",
-        "none forbidden",
-        "unspecified",
-    ),
-    "inputs_outputs_contracts.inputs": (
-        "function parameters from the call site",
-        "HTTP request JSON body",
-        "CLI args and stdin",
-        "existing typed objects",
-        "unspecified",
-    ),
-    "inputs_outputs_contracts.output_contract": (
-        "typed function return value",
-        "JSON schema object",
-        "raw SQL query string",
-        "TypeScript interface plus implementation",
-        "unspecified",
-    ),
-    "inputs_outputs_contracts.examples": (
-        "one happy-path example",
-        "request and response pair",
-        "JSON schema example",
-        "no examples needed",
-        "unspecified",
-    ),
-    "architectural_rules.design_patterns": (
-        "repository pattern",
-        "functional pure helpers",
-        "async/await throughout",
-        "object-oriented services",
-        "unspecified",
-    ),
-    "architectural_rules.coding_style": (
-        "match existing project style",
-        "prefer small pure functions",
-        "explicit types and validation",
-        "idiomatic for the language",
-        "unspecified",
-    ),
-    "architectural_rules.non_functional": (
-        "O(n) time or better",
-        "sanitize inputs against injection",
-        "thread-safe shared state",
-        "fail fast on invalid input",
-        "unspecified",
-    ),
-    "edge_cases_error_strategy.failure_handling": (
-        "raise custom exceptions",
-        "return None or null",
-        "log a warning and continue",
-        "retry with backoff",
-        "unspecified",
-    ),
-    "edge_cases_error_strategy.bad_inputs": (
-        "null or missing fields",
-        "empty lists or strings",
-        "rate-limit responses",
-        "unexpected data types",
-        "unspecified",
-    ),
-    "edge_cases_error_strategy.edge_cases": (
-        "empty input collection",
-        "partial failure mid-batch",
-        "duplicate keys or ids",
-        "timeouts and cancellations",
-        "unspecified",
-    ),
-    "response_formatting.explanation_level": (
-        "code only with inline comments",
-        "brief rationale then code",
-        "step-by-step breakdown before code",
-        "code plus test coverage appended",
-        "unspecified",
-    ),
-    "response_formatting.verbosity": (
-        "very concise",
-        "moderate detail",
-        "comprehensive and thorough",
-        "adjustable by follow-up",
-        "unspecified",
-    ),
-    "response_formatting.extra_artifacts": (
-        "unit tests",
-        "usage example",
-        "migration notes",
-        "no extra artifacts",
-        "unspecified",
-    ),
-    "optimization_targets": (
-        "richness and detail",
-        "density and brevity",
-        "efficiency and speed",
-        "denoising and clarity",
-        "unspecified",
-    ),
+    field_name: quick_reply_labels(field_name) for field_name in CONTRACT_FIELD_NAMES
 }
 
 UNSPECIFIED_ANSWERS = frozenset({"unspecified", "skip", "unknown", "not sure", "n/a"})
 
 
 def clarification_field_priority(card: RequirementCard) -> tuple[str, ...]:
-    """Field order for clarification (coding dimensions)."""
+    """Field order for clarification (16-question agent contract)."""
     del card  # Priority is fixed for the coding workbench.
     return CLARIFICATION_FIELD_PRIORITY
+
+
+def prune_deferred_unresolved(card: RequirementCard) -> None:
+    """Drop empty presentation leaves from unresolved so they stay out of banners."""
+    if not card.unresolved_fields:
+        return
+    card.unresolved_fields = [
+        field_name
+        for field_name in card.unresolved_fields
+        if field_name not in DEFERRED_CLARIFICATION_FIELDS
+    ]
 
 
 class ClarificationQuestion(BaseModel):
@@ -248,7 +115,8 @@ class ClarificationQuestionRanker:
         priority = clarification_field_priority(card)
         missing = [field for field in priority if card.is_leaf_missing(field)]
         card.mark_unresolved(*missing)
-        return missing
+        prune_deferred_unresolved(card)
+        return list(card.unresolved_fields)
 
     def rank(self, card: RequirementCard) -> list[ClarificationQuestion]:
         ordered_fields = self.missing_fields(card)

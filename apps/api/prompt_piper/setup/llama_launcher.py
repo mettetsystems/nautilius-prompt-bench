@@ -24,6 +24,88 @@ class LlamaServerConfig:
     binary: Path
 
 
+def _env_int(name: str) -> int | None:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return None
+    try:
+        return int(raw.strip())
+    except ValueError:
+        return None
+
+
+def estimate_model_weight_mb(model_path: Path | None) -> int | None:
+    """Return on-disk GGUF size in MiB when the file exists."""
+    if model_path is None or not model_path.is_file():
+        return None
+    return max(1, model_path.stat().st_size // (1024 * 1024))
+
+
+def tune_llama_resources(
+    *,
+    vram_mb: int | None,
+    free_vram_mb: int | None = None,
+    model_path: Path | None = None,
+    cpu_only: bool = False,
+) -> tuple[int, int]:
+    """Pick ``(n_ctx, n_gpu_layers)`` from free/detected VRAM and model weight.
+
+    Explicit ``PROMPT_PIPER_LLAMA_N_CTX`` / ``PROMPT_PIPER_LLAMA_GPU_LAYERS`` always win.
+    """
+    env_ctx = _env_int("PROMPT_PIPER_LLAMA_N_CTX")
+    if env_ctx is None:
+        env_ctx = _env_int("PROMPT_PIPER_LLAMA_CONTEXT_SIZE")
+    env_ngl = _env_int("PROMPT_PIPER_LLAMA_GPU_LAYERS")
+
+    if cpu_only:
+        return env_ctx if env_ctx is not None else 2048, 0
+
+    budget = free_vram_mb if free_vram_mb is not None else vram_mb
+    if budget is None:
+        context_size = 4096
+        gpu_layers = 999
+    elif budget < 3072:
+        context_size = 2048
+        gpu_layers = 999
+    elif budget < 6144:
+        context_size = 4096
+        gpu_layers = 999
+    elif budget < 12288:
+        context_size = 8192
+        gpu_layers = 999
+    else:
+        context_size = 8192
+        gpu_layers = 999
+
+    weight_mb = estimate_model_weight_mb(model_path)
+    if weight_mb is not None and budget is not None:
+        # Rough KV reserve: ~128 MiB per 1k context tokens for compact SLMs.
+        kv_reserve_mb = max(256, (context_size // 1024) * 128)
+        available_for_weights = budget - kv_reserve_mb
+        if available_for_weights <= 0:
+            # Prefer a smaller context so some layers can still land on GPU.
+            context_size = min(context_size, 2048)
+            kv_reserve_mb = max(256, (context_size // 1024) * 128)
+            available_for_weights = max(0, budget - kv_reserve_mb)
+        if available_for_weights <= 0:
+            gpu_layers = 0
+        else:
+            fraction = available_for_weights / weight_mb
+            if fraction >= 0.95:
+                gpu_layers = 999
+            elif fraction <= 0.05:
+                gpu_layers = 0
+            else:
+                # Approximate SLM depth (~28–40 layers); llama.cpp clamps high values.
+                gpu_layers = max(1, int(40 * fraction))
+
+    if env_ctx is not None:
+        context_size = env_ctx
+    if env_ngl is not None:
+        gpu_layers = env_ngl
+    return context_size, gpu_layers
+
+
 def repo_root() -> Path:
     override = os.getenv("PROMPT_PIPER_REPO_ROOT")
     if override and override.strip():
@@ -106,17 +188,23 @@ def build_server_config(
     *,
     model_path: Path,
     binary: Path,
-    gpu: GpuInfo,
+    gpu: GpuInfo | None,
     host: str = "127.0.0.1",
     port: int = 8080,
-    context_size: int = 4096,
+    context_size: int | None = None,
+    cpu_only: bool = False,
 ) -> LlamaServerConfig:
-    gpu_layers = int(os.getenv("PROMPT_PIPER_LLAMA_GPU_LAYERS", "999"))
+    tuned_ctx, tuned_ngl = tune_llama_resources(
+        vram_mb=None if gpu is None else gpu.vram_mb,
+        free_vram_mb=None if gpu is None else gpu.free_vram_mb,
+        model_path=model_path,
+        cpu_only=cpu_only or gpu is None,
+    )
     return LlamaServerConfig(
         host=host,
         port=port,
-        context_size=context_size,
-        gpu_layers=gpu_layers,
+        context_size=context_size if context_size is not None else tuned_ctx,
+        gpu_layers=tuned_ngl,
         model_path=model_path,
         binary=binary,
     )

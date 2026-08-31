@@ -73,7 +73,7 @@ def run_setup_wizard(
 
 def _banner() -> str:
     return (
-        "\nPromptPiperCode setup — local model configuration\n"
+        "\nNautilius Prompting Workbench setup — local model configuration\n"
         "================================================\n"
         "Clarification and draft generation can use a local OpenAI-compatible\n"
         "server (llama.cpp, vLLM, etc.) or run in CPU-only mode with rule-based\n"
@@ -83,7 +83,7 @@ def _banner() -> str:
 
 def _run_interactive(read: InputFn, write: PrintFn) -> SetupResult:
     write(
-        "\nHow should PromptPiperCode handle clarification and draft wording?\n"
+        "\nHow should Nautilius Prompting Workbench handle clarification and draft wording?\n"
         "  1) CPU-only mode (no local chat model; rule-based fallbacks)\n"
         "  2) Set up a local SLM (recommended with llama.cpp)\n"
     )
@@ -141,7 +141,7 @@ def _run_interactive(read: InputFn, write: PrintFn) -> SetupResult:
 
 def _ask_deployment(read: InputFn, write: PrintFn) -> str:
     write(
-        "\nWhere will the PromptPiperCode API run?\n"
+        "\nWhere will the Nautilius Prompting Workbench API run?\n"
         "  1) Native dev (API on host — use 127.0.0.1 for the model server)\n"
         "  2) Podman stack (API in container — use host.containers.internal)\n"
     )
@@ -321,7 +321,7 @@ def _print_next_steps(write: PrintFn, result: SetupResult) -> None:
         return
 
     preset = ALL_PRESETS.get(result.preset_id or "")
-    write("Next steps (run from the PromptPiperCode repo root):\n")
+    write("Next steps (run from the Nautilius Prompting Workbench repo root):\n")
     if preset is not None:
         if preset.requires_hf_license:
             write(

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   RECENT_SESSIONS_KEY,
   loadRecentSessions,
+  removeRecentSession,
   saveRecentSessions,
   upsertRecentSession,
 } from "./recentSessions";
@@ -14,41 +15,35 @@ const sampleSession = {
     state: "edit",
     current_draft_id: null,
     prompt_id: null,
+    template_source_session_id: null,
     clarification_turn: 2,
     created_at: "2026-06-15T12:00:00Z",
     updated_at: "2026-06-15T12:05:00Z",
   },
   requirement_card: {
-    technical_context: {
-      environment: "",
-      integration_points: [],
-      dependency_policy: "",
-      forbidden_libraries: [],
-    },
-    core_task_scope: {
-      task_type: "",
+    task_identity: {
       objective: "Summarize status",
-      out_of_scope: [],
+      task_type: "",
+      environment: "",
+      additional_constraints: [],
     },
-    inputs_outputs_contracts: {
-      inputs: "",
-      output_contract: "",
-      examples: [],
-    },
-    architectural_rules: {
-      design_patterns: [],
-      coding_style: "",
-      non_functional: [],
-    },
-    edge_cases_error_strategy: {
-      failure_handling: "",
-      bad_inputs: [],
-      edge_cases: [],
-    },
-    response_formatting: {
-      explanation_level: "",
-      verbosity: "",
-      extra_artifacts: [],
+    agent_contract: {
+      definition_of_done: "",
+      change_scope: "",
+      architecture_policy: "",
+      discovery_policy: "",
+      execution_strategy: "",
+      validation_strategy: "",
+      failure_recovery: "",
+      autonomy_policy: "",
+      persistent_memory: "",
+      completion_contract: "",
+      resource_budget: "",
+      tool_safety: "",
+      context_compaction: "",
+      rollback_protocol: "",
+      escalation_rules: "",
+      dependency_security: "",
     },
     optimization_targets: {},
     unresolved_fields: [],
@@ -60,6 +55,7 @@ const sampleSession = {
   clarification_quick_replies: null,
   clarification_quick_reply_guides: null,
   clarification_versions: null,
+  clarification_can_finish: null,
   current_draft: null,
   revised_draft: null,
   semantic_diff: null,
@@ -71,6 +67,8 @@ const sampleSession = {
   similarity_warning: "A similar prompt pattern may already exist.",
   similarity_matches: [],
   optimization_result: null,
+  pre_inference_metrics: null,
+  inference_result: null,
   artifact_manifest: null,
   artifact_warning: null,
   export_id: null,
@@ -110,5 +108,35 @@ describe("recentSessions", () => {
     expect(updated).toHaveLength(1);
     expect(updated[0]?.title).toBe("Updated title");
     expect(updated[0]?.similarityWarning).toContain("similar prompt");
+  });
+
+  it("removes a session by id", () => {
+    upsertRecentSession(sampleSession);
+    upsertRecentSession({
+      ...sampleSession,
+      session: { ...sampleSession.session, id: "session-2", title: "Other" },
+    });
+    const next = removeRecentSession("session-1");
+    expect(next).toHaveLength(1);
+    expect(next[0]?.id).toBe("session-2");
+    expect(loadRecentSessions()).toHaveLength(1);
+  });
+
+  it("does not share PromptPiper dashboard recents", () => {
+    expect(RECENT_SESSIONS_KEY).toBe("nautilius.recent-sessions");
+    localStorage.setItem(
+      "prompt-piper.recent-sessions",
+      JSON.stringify([
+        {
+          id: "foreign",
+          title: "PromptPiper session",
+          state: "edit",
+          promptId: null,
+          similarityWarning: null,
+          updatedAt: "2026-06-15T12:00:00Z",
+        },
+      ]),
+    );
+    expect(loadRecentSessions()).toEqual([]);
   });
 });

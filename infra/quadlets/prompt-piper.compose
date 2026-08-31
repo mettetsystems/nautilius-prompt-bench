@@ -1,18 +1,18 @@
-# Run the full PromptPiperCode stack via podman compose (recommended Quadlet method).
+# Run the full Nautilius Prompting Workbench stack via podman compose (recommended Quadlet method).
 # Install: scripts/install-quadlets.sh --method compose
 #
 # Build images once before first start:
 #   podman compose -f infra/podman-compose.yml build
 
 [Unit]
-Description=PromptPiperCode (Podman Compose stack)
-Documentation=file://%h/PromptPiperCode/infra/quadlets/README.md
+Description=Nautilius Prompting Workbench (Podman Compose stack)
+Documentation=file://%h/nautilius-prompt-bench/infra/quadlets/README.md
 After=network-online.target
 Wants=network-online.target
 
 [Compose]
-File=%h/PromptPiperCode/infra/podman-compose.yml
-WorkingDirectory=%h/PromptPiperCode
+File=%h/nautilius-prompt-bench/infra/podman-compose.yml
+WorkingDirectory=%h/nautilius-prompt-bench
 
 [Service]
 Restart=always

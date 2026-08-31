@@ -24,7 +24,7 @@ function resolveBaseUrl(): string {
     // Vite dev server proxies API routes to the backend (see vite.config.ts).
     return "";
   }
-  return import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
+  return import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8010";
 }
 
 export function formatApiError(error: unknown, fallback = "Request failed."): string {
@@ -97,4 +97,4 @@ export function artifactFileUrl(promptId: string, filename: string): string {
   return `${baseUrl}/registry/prompts/${encodeURIComponent(promptId)}/artifacts/${encodeURIComponent(filename)}`;
 }
 
-export const baseUrl = resolveBaseUrl() || "http://127.0.0.1:8000";
+export const baseUrl = resolveBaseUrl() || "http://127.0.0.1:8010";

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Wait for PostgreSQL and create PromptPiperCode tables (Quadlet / podman exec path).
+# Wait for PostgreSQL and create Nautilius Prompting Workbench tables (Quadlet / podman exec path).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

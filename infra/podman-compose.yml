@@ -1,4 +1,4 @@
-# Local-first Podman Compose stack for PromptPiperCode (Fedora-friendly).
+# Local-first Podman Compose stack for Nautilius Prompting Workbench (Fedora-friendly).
 # Run from repo root: ./scripts/dev-up.sh
 # Or: podman compose -f infra/podman-compose.yml up -d --build
 
@@ -51,9 +51,9 @@ services:
       PROMPT_PIPER_EXTERNAL_INFERENCE_ENABLED: ${PROMPT_PIPER_EXTERNAL_INFERENCE_ENABLED:-false}
       PROMPT_PIPER_EXTERNAL_ENABLED: ${PROMPT_PIPER_EXTERNAL_ENABLED:-false}
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:8010:8000"
     volumes:
-      - ${HOME}/Documents/PromptPiperCode:/exports:Z
+      - ${HOME}/Documents/Nautilius:/exports:Z
       - ../data/model-cache:/models:Z
       - ../data/nltk_data:/app/data/nltk_data:Z
       - ../data/lexicon:/app/data/lexicon:Z
@@ -75,10 +75,10 @@ services:
       context: ..
       dockerfile: infra/Containerfile.web
       args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:8000}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:8010}
     container_name: prompt-piper-web
     ports:
-      - "127.0.0.1:5173:8080"
+      - "127.0.0.1:5174:8080"
     depends_on:
       api:
         condition: service_healthy
@@ -120,7 +120,7 @@ services:
       TRANSFORMERS_CACHE: /models
       SENTENCE_TRANSFORMERS_HOME: /models
     volumes:
-      - ${HOME}/Documents/PromptPiperCode:/exports:Z
+      - ${HOME}/Documents/Nautilius:/exports:Z
       - ../data/model-cache:/models:Z
     command: ["sleep", "infinity"]
     restart: unless-stopped

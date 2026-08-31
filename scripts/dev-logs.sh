@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Follow logs from the PromptPiperCode Podman stack.
+# Follow logs from the Nautilius Prompting Workbench Podman stack.
 # Usage: ./scripts/dev-logs.sh [service]
 #   service: postgres | api | web (optional; default all services)
 set -euo pipefail

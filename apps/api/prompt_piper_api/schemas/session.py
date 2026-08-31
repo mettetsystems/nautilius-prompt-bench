@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Self
 from uuid import UUID
 
 from prompt_piper_api.domain.artifacts import ArtifactManifest
@@ -8,6 +9,7 @@ from prompt_piper_api.domain.enums import SessionState
 from prompt_piper_api.domain.inference import SendToInferenceResult
 from prompt_piper_api.domain.limits import (
     MAX_CLARIFICATION_ANSWER_CHARS,
+    MAX_DRAFT_BODY_CHARS,
     MAX_EDIT_INSTRUCTION_CHARS,
     MAX_EXPORT_FOLDER_LABEL_CHARS,
     MAX_INITIAL_REQUEST_CHARS,
@@ -20,9 +22,13 @@ from prompt_piper_api.domain.similarity import SimilarityMatch
 from prompt_piper_api.services.clarification_option_guides import QuickReplyGuide
 from prompt_piper_api.services.clarification_prompts import ClarificationVersionText
 from prompt_piper_api.services.clarification_question_ranker import ClarificationQuestionRanker
+from prompt_piper_api.services.first_shot_readiness import (
+    FirstShotReadiness,
+    assess_first_shot_readiness,
+)
 from prompt_piper_api.services.session_record import SessionRecord
 from prompt_piper_api.services.session_service import SessionActionResult
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ClarificationSuggestionsResponse(BaseModel):
@@ -57,7 +63,20 @@ class AnswerClarificationRequest(BaseModel):
 
 
 class EditDraftRequest(BaseModel):
-    instruction: str = Field(min_length=1, max_length=MAX_EDIT_INSTRUCTION_CHARS)
+    instruction: str | None = Field(default=None, max_length=MAX_EDIT_INSTRUCTION_CHARS)
+    body: str | None = Field(default=None, max_length=MAX_DRAFT_BODY_CHARS)
+
+    @model_validator(mode="after")
+    def require_instruction_or_body(self) -> Self:
+        if self.body is not None:
+            if not self.body.strip():
+                msg = "Draft body cannot be empty"
+                raise ValueError(msg)
+            return self
+        if not (self.instruction or "").strip():
+            msg = "Provide an edit instruction or a replacement draft body"
+            raise ValueError(msg)
+        return self
 
 
 class GenerateArtifactsRequest(BaseModel):
@@ -66,6 +85,16 @@ class GenerateArtifactsRequest(BaseModel):
         default=None,
         max_length=MAX_EXPORT_FOLDER_LABEL_CHARS,
         description="Optional export folder label; defaults to the session title.",
+    )
+
+
+class FinalizeSessionRequest(BaseModel):
+    acknowledge_first_shot_risk: bool = Field(
+        default=False,
+        description=(
+            "When true, finalize even if first-shot contract checklist has gaps "
+            "(examples, failure modes, acceptance cues)."
+        ),
     )
 
 
@@ -113,6 +142,8 @@ class SessionDetailResponse(BaseModel):
     manifest_path: str | None = None
     generated_files: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    first_shot_readiness: FirstShotReadiness | None = None
+    quality_gate_warnings: list[str] = Field(default_factory=list)
 
 
 def to_session_summary(record: SessionRecord) -> SessionSummary:
@@ -229,6 +260,13 @@ def to_session_response(result: SessionActionResult) -> SessionDetailResponse:
             result.artifact_result.generated_files if result.artifact_result else []
         ),
         warnings=result.artifact_result.warnings if result.artifact_result else [],
+        first_shot_readiness=(
+            result.first_shot_readiness
+            or assess_first_shot_readiness(
+                result.updated_requirement_card or record.session.requirement_card
+            )
+        ),
+        quality_gate_warnings=list(result.quality_gate_warnings),
         **clarification,
     )
 
@@ -244,5 +282,6 @@ def to_session_detail(record: SessionRecord) -> SessionDetailResponse:
         artifact_manifest=(
             record.artifact_result.manifest if record.artifact_result is not None else None
         ),
+        first_shot_readiness=assess_first_shot_readiness(record.session.requirement_card),
         **_clarification_from_pending(record),
     )

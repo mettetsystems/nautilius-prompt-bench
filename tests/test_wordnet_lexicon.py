@@ -82,11 +82,13 @@ def test_precision_suggestion_service_uses_wordnet_fallback(
         category=VagueLanguageCategory.CATCH_ALL_NOUN,
         line_number=1,
         line="Summarize the thing for leadership.",
+        start=15,
+        end=20,
     )
     result = service.suggest(
         finding=finding,
         body=finding.line,
-        card=RequirementCard(core_task_scope={"objective": "Weekly engineering status summary"}),
+        card=RequirementCard(task_identity={"objective": "Weekly engineering status summary"}),
     )
     assert result.source is PrecisionSuggestionSource.WORDNET
     assert "deliverable" in result.suggested_replacements

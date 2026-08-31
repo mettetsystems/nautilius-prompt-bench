@@ -1,12 +1,14 @@
 # Domain models (`domain/`)
 
-Pure data types and enums for the PromptPiperCode coding-prompt workflow. No I/O, no HTTP — safe to import from tests and services.
+Pure data types and enums for the Nautilius Prompting Workbench long-horizon coding-agent workflow. No I/O, no HTTP — safe to import from tests and services.
 
 | Module | Contents |
 |--------|----------|
 | `session.py` | `PromptSession` — id, title, state, requirement card, prompt_id |
 | `draft.py` | `PromptDraft` — versioned prompt text, canonical/frozen flags |
-| `requirement_card.py` | Six nested coding dimensions + leaf helpers + OptimizationTargets |
+| `requirement_card.py` | Task identity + 16-question `AgentContract` + leaf helpers + OptimizationTargets |
+| `agent_contract.py` | Clarification questions, recommended defaults, and option expansions |
+| `harness.py` | Long-horizon contract section titles and system prompt |
 | `enums.py` | `SessionState` — intake through exported |
 | `optimization.py` | Constraint graph, metrics, `OptimizationResult` |
 | `similarity.py` | Similarity check results and matches |

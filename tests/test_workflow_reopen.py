@@ -21,7 +21,7 @@ def _session_at_similarity(client: TestClient) -> tuple[str, dict]:
         session_id,
         answers=["Engineering managers", "Bulleted summary with risks"],
     )
-    finalized = client.post(f"/sessions/{session_id}/finalize")
+    finalized = client.post(f"/sessions/{session_id}/finalize", json={"acknowledge_first_shot_risk": True})
     assert finalized.status_code == 200
     return session_id, finalized.json()
 
@@ -114,7 +114,7 @@ def test_rerun_optimization_from_approval_state(service: SessionService) -> None
         session_id,
         answers=["Developers", "Markdown changelog entries"],
     )
-    service.finalize(session_id)
+    service.finalize(session_id, acknowledge_first_shot_risk=True)
     service.optimize(session_id)
 
     record = service.get_session(session_id)
@@ -139,7 +139,7 @@ def test_reopen_for_edit_service(service: SessionService) -> None:
         session_id,
         answers=["Support agents", "Question and answer pairs"],
     )
-    service.finalize(session_id)
+    service.finalize(session_id, acknowledge_first_shot_risk=True)
 
     with pytest.raises(StateTransitionError):
         service.edit_draft(session_id, "Make it shorter")

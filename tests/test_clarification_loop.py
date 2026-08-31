@@ -24,14 +24,29 @@ def service() -> SessionService:
 
 
 def test_ranker_uses_high_value_field_priority(ranker: ClarificationQuestionRanker) -> None:
-    card = RequirementCard(core_task_scope={"objective": "Add FastAPI user create endpoint"})
+    card = RequirementCard(task_identity={"objective": "Add FastAPI user create endpoint"})
     ranked = ranker.rank(card)
 
     assert [question.field_name for question in ranked[:3]] == [
-        "core_task_scope.task_type",
-        "technical_context.environment",
-        "inputs_outputs_contracts.output_contract",
+        "agent_contract.definition_of_done",
+        "agent_contract.change_scope",
+        "agent_contract.architecture_policy",
     ]
+
+
+def test_deferred_presentation_fields_not_queued(ranker: ClarificationQuestionRanker) -> None:
+    card = RequirementCard()
+    missing = ranker.missing_fields(card)
+    ranked_fields = [question.field_name for question in ranker.rank(card)]
+
+    for field_name in (
+        "task_identity.objective",
+        "task_identity.environment",
+        "optimization_targets",
+    ):
+        assert field_name not in missing
+        assert field_name not in ranked_fields
+        assert field_name not in card.unresolved_fields
 
 
 def test_only_one_question_per_turn(service: SessionService) -> None:
@@ -74,7 +89,10 @@ def test_clarification_loop_reaches_draft_at_gate(client: TestClient) -> None:
     assert create.json()["clarification_question_number"] == 1
     assert create.json()["current_draft"] is None
 
-    first = client.post(f"/sessions/{session_id}/answer", json={"answer": "new feature logic"})
+    first = client.post(
+        f"/sessions/{session_id}/answer",
+        json={"answer": "Recommended: evidence-based COMPLETE / PARTIAL / BLOCKED / FAILED"},
+    )
     assert first.status_code == 200
     assert first.json()["session"]["state"] == SessionState.CLARIFYING
     assert first.json()["current_draft"] is None
@@ -142,20 +160,20 @@ def test_complete_clarification_after_all_gaps_unspecified(service: SessionServi
 def test_format_clarification_question_example_style() -> None:
     text = format_clarification_question(
         question_number=1,
-        total_questions=15,
-        prompt="what is the precise stack (language version, framework, key dependencies)?",
+        total_questions=16,
+        prompt='What does "done" actually mean?',
         quick_reply_options=[
-            "Python with FastAPI and Pydantic",
-            "TypeScript / React",
-            "stdlib only",
+            "Recommended: evidence-based COMPLETE / PARTIAL / BLOCKED / FAILED",
+            "Stricter: tests, demo, docs, and no known regressions",
+            "Minimal: requested behavior is demonstrable",
             "unspecified",
         ],
     )
 
     assert text.startswith(
-        "Quick question 1 of 15: what is the precise stack (language version, framework, key dependencies)?"
+        'Quick question 1 of 16: What does "done" actually mean?'
     )
-    assert "- Python with FastAPI and Pydantic" in text
+    assert "- Recommended: evidence-based COMPLETE / PARTIAL / BLOCKED / FAILED" in text
     assert "- unspecified" in text
 
 
@@ -163,10 +181,10 @@ def test_extractor_marks_unspecified_without_inventing_values() -> None:
     card = RequirementCard()
     extractor = RequirementCardExtractor()
 
-    extractor.apply_answer(card, "technical_context.environment", "unspecified")
+    extractor.apply_answer(card, "agent_contract.definition_of_done", "unspecified")
 
-    assert card.technical_context.environment == ""
-    assert "technical_context.environment" in card.unresolved_fields
+    assert card.agent_contract.definition_of_done == ""
+    assert "agent_contract.definition_of_done" in card.unresolved_fields
 
 
 def test_extractor_applies_multiple_quick_replies_to_list_field() -> None:
@@ -175,11 +193,11 @@ def test_extractor_applies_multiple_quick_replies_to_list_field() -> None:
 
     extractor.apply_answer(
         card,
-        "architectural_rules.non_functional",
+        "task_identity.additional_constraints",
         "keep under 500 words; no jargon; cite sources",
     )
 
-    assert card.architectural_rules.non_functional == [
+    assert card.task_identity.additional_constraints == [
         "keep under 500 words",
         "no jargon",
         "cite sources",
@@ -192,9 +210,9 @@ def test_extractor_applies_multiple_quick_replies_to_string_field() -> None:
 
     extractor.apply_answer(
         card,
-        "technical_context.environment",
-        "Python with FastAPI; Pydantic v2",
+        "agent_contract.change_scope",
+        "Recommended: minimum necessary change",
     )
 
-    assert card.technical_context.environment == "Python with FastAPI; Pydantic v2"
-    assert "technical_context.environment" not in card.unresolved_fields
+    assert "minimum-necessary change policy" in card.agent_contract.change_scope.lower()
+    assert "agent_contract.change_scope" not in card.unresolved_fields

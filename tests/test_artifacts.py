@@ -86,7 +86,7 @@ def _enter_approval_state(service: SessionService, *, body: str | None = None) -
     record.session.requirement_card.unresolved_fields = []
     if body is not None:
         record.drafts[-1].body = body
-    service.finalize(session_id)
+    service.finalize(session_id, acknowledge_first_shot_risk=True)
     service.optimize(session_id)
     service.approve_optimization(session_id)
     return session_id
@@ -146,10 +146,11 @@ def test_manifest_lists_all_generated_files(
             encoding="utf-8"
         )
     )
+    artifact_dir = _artifact_dir(artifact_export, prompt_id)
     manifest_names = {entry["name"] for entry in manifest["files"]}
     disk_names = {
-        path.name
-        for path in _artifact_dir(artifact_export, prompt_id).iterdir()
+        path.relative_to(artifact_dir).as_posix()
+        for path in artifact_dir.rglob("*")
         if path.is_file()
     }
     assert "artifact_manifest.json" in manifest_names
@@ -268,7 +269,7 @@ def test_api_route_generates_artifacts(
 
     detail = client.get(f"/sessions/{session_id}").json()
     card = detail["requirement_card"]
-    card["core_task_scope"]["objective"] = (
+    card["task_identity"]["objective"] = (
         "Summarize weekly engineering status for leadership review."
     )
     card["unresolved_fields"] = []
@@ -277,7 +278,7 @@ def test_api_route_generates_artifacts(
     record.session.requirement_card = type(record.session.requirement_card).model_validate(card)
     record.drafts[-1].body = _sample_body()
 
-    client.post(f"/sessions/{session_id}/finalize")
+    client.post(f"/sessions/{session_id}/finalize", json={"acknowledge_first_shot_risk": True})
     client.post(f"/sessions/{session_id}/optimize")
     client.post(f"/sessions/{session_id}/optimize/approve")
 

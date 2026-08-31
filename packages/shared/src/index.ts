@@ -1,5 +1,5 @@
 /**
- * Shared types for PromptPiperCode.
+ * Shared types for Nautilius Prompting Workbench.
  * OpenAPI-generated types can be added here as the API surface grows.
  */
 
@@ -20,7 +20,7 @@ export interface LlmHealthResponse {
   checked_at: string;
 }
 
-export const APP_NAME = "PromptPiperCode";
+export const APP_NAME = "Nautilius Prompting Workbench";
 
 export const APP_TAGLINE =
-  "Design coding prompts locally across six dimensions. Export a structured spec and a ready-to-paste prompt.";
+  "Design long-horizon coding-agent contracts locally. Clarify operational policy, optimize for clarity, and export a ready-to-run prompt.";

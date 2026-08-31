@@ -33,6 +33,7 @@ class ConstraintGraph(BaseModel):
 
 
 class OptimizationTargetMetrics(BaseModel):
+    clarity: float = Field(default=0.0, ge=0.0, le=1.0)
     richness: float = Field(ge=0.0, le=1.0)
     density: float = Field(ge=0.0, le=1.0)
     efficiency: float = Field(ge=0.0, le=1.0)
@@ -51,6 +52,7 @@ class OptimizationMetrics(BaseModel):
 class OptimizationChangeLog(BaseModel):
     removed: list[str] = Field(default_factory=list)
     compressed: list[str] = Field(default_factory=list)
+    clarified: list[str] = Field(default_factory=list)
     conflicts_resolved: list[str] = Field(default_factory=list)
     precision_improvements: list[str] = Field(default_factory=list)
 

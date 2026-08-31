@@ -1,6 +1,6 @@
-# PromptPiperCode Quadlets (Fedora / rootless Podman)
+# Nautilius Prompting Workbench Quadlets (Fedora / rootless Podman)
 
-Run PromptPiperCode as **persistent user systemd services** that start at boot.
+Run Nautilius Prompting Workbench as **persistent user systemd services** that start at boot.
 
 Quadlets live in `~/.config/containers/systemd/` and are managed with `systemctl --user`.
 
@@ -11,7 +11,7 @@ sudo dnf install podman podman-compose
 loginctl enable-linger "$USER"   # start containers at boot without logging in
 ```
 
-Clone or copy the repo to `~/PromptPiperCode` (Quadlet paths assume `%h/PromptPiperCode`).
+Clone or copy the repo to `~/nautilius-prompt-bench` (Quadlet paths assume `%h/nautilius-prompt-bench`).
 
 ## Quick install
 
@@ -61,10 +61,10 @@ Or: `./scripts/install-quadlets.sh --method compose`
 ### One-time setup
 
 ```bash
-cd ~/PromptPiperCode
+cd ~/nautilius-prompt-bench
 cp .env.example .env   # first time only
 
-mkdir -p ~/Documents/PromptPiperCode/{exports,registry,audit}
+mkdir -p ~/Documents/Nautilius/{exports,registry,audit}
 mkdir -p data/{postgres,model-cache}
 
 podman compose -f infra/podman-compose.yml build
@@ -90,7 +90,7 @@ Open http://127.0.0.1:5173 in a browser.
 ### After code changes
 
 ```bash
-cd ~/PromptPiperCode
+cd ~/nautilius-prompt-bench
 podman compose -f infra/podman-compose.yml build
 systemctl --user restart prompt-piper.service
 ```
@@ -119,7 +119,7 @@ This copies:
 ### Build tagged images
 
 ```bash
-cd ~/PromptPiperCode
+cd ~/nautilius-prompt-bench
 podman build -f infra/Containerfile.api -t localhost/prompt-piper-api:latest .
 podman build -f infra/Containerfile.web \
   --build-arg VITE_API_BASE_URL=http://127.0.0.1:8000 \
@@ -143,10 +143,10 @@ systemctl --user enable --now prompt-piper-web.service
 
 | Data | Host path |
 |------|-----------|
-| Exports, registry, audit | `~/Documents/PromptPiperCode/` |
-| PostgreSQL | `~/PromptPiperCode/data/postgres/` |
-| Embedding model cache | `~/PromptPiperCode/data/model-cache/` |
-| Configuration | `~/PromptPiperCode/.env` |
+| Exports, registry, audit | `~/Documents/Nautilius/` |
+| PostgreSQL | `~/nautilius-prompt-bench/data/postgres/` |
+| Embedding model cache | `~/nautilius-prompt-bench/data/model-cache/` |
+| Configuration | `~/nautilius-prompt-bench/.env` |
 
 Containers are recreated on start; data stays on the host via bind mounts.
 
@@ -175,9 +175,9 @@ systemctl --user disable prompt-piper.service
 
 ## Custom repo location
 
-If the repo is not at `~/PromptPiperCode`, edit paths in the Quadlet files before installing:
+If the repo is not at `~/nautilius-prompt-bench`, edit paths in the Quadlet files before installing:
 
-- `%h/PromptPiperCode` → your clone path (Quadlet `%h` = home directory)
+- `%h/nautilius-prompt-bench` → your clone path (Quadlet `%h` = home directory)
 - Or set `WorkingDirectory` / `File` in `prompt-piper.compose` accordingly
 
 ---
@@ -208,7 +208,7 @@ loginctl enable-linger "$USER"
 Bind mounts use the `:Z` suffix in Quadlet `Volume=` lines. If writes fail:
 
 ```bash
-ls -Z ~/Documents/PromptPiperCode
+ls -Z ~/Documents/Nautilius
 systemctl --user restart prompt-piper-api.service
 ```
 
@@ -234,4 +234,4 @@ rm -f ~/.config/containers/systemd/prompt-piper*
 systemctl --user daemon-reload
 ```
 
-Data under `~/Documents/PromptPiperCode` and `~/PromptPiperCode/data/` is not removed automatically.
+Data under `~/Documents/Nautilius` and `~/nautilius-prompt-bench/data/` is not removed automatically.

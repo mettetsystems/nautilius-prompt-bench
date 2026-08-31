@@ -8,10 +8,28 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from prompt_piper_api.domain.requirement_card import LEAF_FIELD_NAMES, RequirementCard
-from prompt_piper_api.llm.base import ChatMessage, LLMClient
-from prompt_piper_api.llm.fallback import with_llm_fallback
+from prompt_piper_api.llm.base import ChatMessage, LLMClient, LLMError
 from prompt_piper_api.services.clarification_option_guides import build_quick_reply_guides
-from prompt_piper_api.services.clarification_prompts import BEGINNER_PROMPTS, STANDARD_PROMPTS
+from prompt_piper_api.services.clarification_prompts import STANDARD_PROMPTS
+
+# Keep payloads small for tiny local models (e.g. qwen3-0.6b).
+_MAX_INITIAL_REQUEST_CHARS = 400
+_MAX_OPTION_GUIDES = 5
+# One-word to one-sentence JSON answer; keep decode budget tiny.
+_SHORT_ANSWER_MAX_TOKENS = 64
+
+
+def _first_sentence(text: str) -> str:
+    """Clamp model output to at most one sentence (or a short phrase)."""
+    cleaned = " ".join(text.split()).strip().strip("\"'`")
+    if not cleaned:
+        return ""
+    for separator in (". ", "! ", "? ", "\n"):
+        if separator in cleaned:
+            head, _sep, _rest = cleaned.partition(separator)
+            end = separator.strip()
+            return f"{head}{end}" if end in ".!?" else head
+    return cleaned
 
 
 class AskTheLocalsInsight(BaseModel):
@@ -63,11 +81,12 @@ class AskTheLocalsService:
         asked_fields: list[str] | None = None,
         model_source: str | None = None,
     ) -> AskTheLocalsInsight:
+        del asked_fields  # Kept for call-site compatibility; not needed for short answers.
         standard_prompt = STANDARD_PROMPTS.get(field_name, "What should this field contain?")
-        beginner = BEGINNER_PROMPTS.get(field_name)
-        beginner_prompt = beginner[0] if beginner else standard_prompt
-        beginner_rationale = beginner[1] if beginner else None
-        option_guides = [guide.model_dump() for guide in build_quick_reply_guides(field_name)]
+        option_guides = [
+            guide.model_dump()
+            for guide in build_quick_reply_guides(field_name)[:_MAX_OPTION_GUIDES]
+        ]
         previous_answers = collect_previous_answers(card, exclude_field=field_name)
 
         def unavailable(message: str) -> AskTheLocalsInsight:
@@ -81,105 +100,108 @@ class AskTheLocalsService:
                 message=message,
             )
 
-        return with_llm_fallback(
-            self._llm,
-            lambda client: self._ask_with_llm(
-                client,
+        if self._llm is None:
+            return unavailable(
+                "Ask The Locals is unavailable. Configure the current AI tooling model "
+                "or an Ask The Locals API in Settings."
+            )
+
+        try:
+            health = self._llm.health_check()
+        except Exception as exc:  # noqa: BLE001 — surface probe failures to the UI
+            return unavailable(
+                f"Ask The Locals could not reach the model endpoint: {exc}"
+            )
+        if not health.ok:
+            return unavailable(
+                "Ask The Locals could not reach the model endpoint "
+                f"({health.message}). Check Settings / the local server, then retry."
+            )
+
+        try:
+            return self._ask_with_llm(
+                self._llm,
                 initial_request=initial_request,
-                card=card,
                 field_name=field_name,
                 standard_prompt=standard_prompt,
-                beginner_prompt=beginner_prompt,
-                beginner_rationale=beginner_rationale,
                 option_guides=option_guides,
                 previous_answers=previous_answers,
                 last_answer=last_answer,
-                asked_fields=asked_fields or [],
                 model_source=model_source,
-            ),
-            lambda: unavailable(
-                "Ask The Locals is unavailable. Configure the current AI tooling model "
-                "or an Ask The Locals API in Settings."
-            ),
-        )
+            )
+        except (LLMError, json.JSONDecodeError, ValueError, KeyError, TypeError) as exc:
+            detail = str(exc).strip() or exc.__class__.__name__
+            return unavailable(
+                "Ask The Locals reached the model but the response failed "
+                f"({detail[:240]}). Tiny models like qwen3-0.6b often need a shorter "
+                "prompt or a larger max_tokens; retry or use a larger preset."
+            )
+        except Exception as exc:  # noqa: BLE001
+            detail = str(exc).strip() or exc.__class__.__name__
+            return unavailable(
+                f"Ask The Locals failed unexpectedly ({detail[:240]})."
+            )
 
     def _ask_with_llm(
         self,
         llm: LLMClient,
         *,
         initial_request: str,
-        card: RequirementCard,
         field_name: str,
         standard_prompt: str,
-        beginner_prompt: str,
-        beginner_rationale: str | None,
         option_guides: list[dict[str, str]],
         previous_answers: dict[str, Any],
         last_answer: str | None,
-        asked_fields: list[str],
         model_source: str | None,
     ) -> AskTheLocalsInsight:
+        # Slim context: full requirement_card dumps routinely blow tiny-model budgets.
         context = {
-            "initial_request": initial_request,
-            "requirement_card": card.model_dump(),
+            "initial_request": initial_request.strip()[:_MAX_INITIAL_REQUEST_CHARS],
             "previous_answers": previous_answers,
             "field_name": field_name,
-            "standard_prompt": standard_prompt,
-            "beginner_prompt": beginner_prompt,
-            "beginner_rationale": beginner_rationale,
-            "option_guides": option_guides,
+            "question": standard_prompt,
+            "option_labels": [guide.get("option", "") for guide in option_guides],
             "last_answer": last_answer,
-            "asked_fields": asked_fields,
         }
         response = llm.chat(
             [
                 ChatMessage(
                     role="system",
                     content=(
-                        "You help a person answer one clarification question for a coding "
-                        "prompt workbench. Use previous_answers and the requirement card to "
-                        "give contextualized recommendations that stay consistent with what "
-                        "they already decided. Explain briefly what the question is asking "
-                        "and why it matters for their request. Prefer concrete wording they "
-                        "can paste into a custom answer field. "
-                        "Use plain, clear language (about 10th-grade reading level). "
-                        "Do not invent project facts that contradict previous_answers; when "
-                        "prior answers are empty, ground suggestions only in initial_request. "
-                        "Return JSON with keys: "
-                        "insight (2 to 4 short paragraphs of guidance; no markdown headings), "
-                        "recommended_answer (one concise paste-ready answer for this field, "
-                        "1 to 3 sentences or a short bullet-like phrase, no surrounding quotes)."
+                        "Answer one clarification field for a coding prompt. "
+                        "Stay consistent with previous_answers. Do not invent project facts. "
+                        "Return JSON only with key recommended_answer. "
+                        "recommended_answer must be between 1 word and 1 sentence "
+                        "(paste-ready; no quotes, no explanation, no markdown)."
                     ),
                 ),
                 ChatMessage(role="user", content=json.dumps(context)),
             ],
             response_format={"type": "json_object"},
+            max_tokens=_SHORT_ANSWER_MAX_TOKENS,
         )
         payload = json.loads(response.content)
-        insight = str(payload.get("insight", "")).strip()
-        recommended_answer = str(
-            payload.get("recommended_answer") or payload.get("recommendation") or ""
-        ).strip()
-        if not insight:
-            insight = (
-                f"{beginner_prompt}\n\n"
-                f"{beginner_rationale or ''}\n\n"
-                "Review the default options below and pick the closest match, "
-                "or write your own answer."
-            ).strip()
-        if not recommended_answer:
-            recommended_answer = insight
+        recommended_answer = _first_sentence(
+            str(
+                payload.get("recommended_answer")
+                or payload.get("recommendation")
+                or payload.get("insight")
+                or ""
+            )
+        )
+        if not recommended_answer and option_guides:
+            recommended_answer = str(option_guides[0].get("option", "")).strip()
 
         return AskTheLocalsInsight(
             field_name=field_name,
-            insight=insight,
+            insight="",
             recommended_answer=recommended_answer,
             previous_answers_used=list(previous_answers.keys()),
             model_available=True,
             model_source=model_source,
             message=(
-                "Contextual recommendation ready."
+                "Short recommendation ready."
                 if previous_answers
-                else "Local insight is ready."
+                else "Local recommendation ready."
             ),
         )

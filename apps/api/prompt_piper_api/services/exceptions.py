@@ -20,6 +20,20 @@ class SessionNotFoundError(AppError):
         super().__init__(f"Session {session_id} not found.", session_id=session_id)
 
 
+class SessionLoadError(AppError):
+    """Persisted session JSON does not match the current requirement-card schema."""
+
+    code = ErrorCode.VALIDATION_ERROR
+    http_status = 422
+
+    def __init__(self, session_id: str) -> None:
+        super().__init__(
+            "This session was saved with an older requirement-card schema and cannot "
+            "be loaded. Start a new session from the same initial prompt.",
+            session_id=session_id,
+        )
+
+
 class PromptNotFoundError(AppError):
     code = ErrorCode.PROMPT_NOT_FOUND
     http_status = 404
@@ -76,3 +90,15 @@ class InferenceCallError(AppError):
 
     def __init__(self, message: str, *, reason: str = "provider_error") -> None:
         super().__init__(message, reason=reason)
+
+
+class FirstShotRiskError(AppError):
+    """Finalize blocked until the user acknowledges first-shot contract gaps."""
+
+    code = ErrorCode.FIRST_SHOT_RISK
+    http_status = 409
+
+    def __init__(self, message: str, *, risks: list[str]) -> None:
+        self.risks = risks
+        details = {f"risk_{index}": risk for index, risk in enumerate(risks[:12])}
+        super().__init__(message, reason="acknowledge_first_shot_risk", **details)

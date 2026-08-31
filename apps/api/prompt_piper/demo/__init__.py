@@ -1,1 +1,1 @@
-"""Local demo flows for PromptPiperCode."""
+"""Local demo flows for Nautilius Prompting Workbench."""

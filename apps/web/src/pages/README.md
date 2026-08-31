@@ -6,7 +6,7 @@ One page component per workflow stage or registry view.
 |------|-------|------|
 | `DashboardPage.tsx` | `/` | Recent sessions (delete removes the session file) and registry shortcuts |
 | `NewSessionPage.tsx` | `/sessions/new` | Initial prompt — paste tables become markdown |
-| `ClarificationPage.tsx` | `…/clarify` | Multi-select answers for six coding dimensions |
+| `ClarificationPage.tsx` | `…/clarify` | Multi-select answers for the 16-question agent contract |
 | `DraftEditorPage.tsx` | `…/edit` | NL edit instructions, finalize |
 | `SimilarityCheckPage.tsx` | `…/similarity` | Match review, continue to optimize |
 | `OptimizationPage.tsx` | `…/optimize` | Metrics, semantic precision score, approve export gate |

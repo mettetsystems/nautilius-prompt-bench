@@ -12,4 +12,5 @@ class EditIntent(StrEnum):
     EXPAND_DETAIL = "expand_detail"
     OPTIMIZE_FOR_TOKENS = "optimize_for_tokens"
     CLARIFY_UNSPECIFIED_FIELD = "clarify_unspecified_field"
+    DIRECT_EDIT = "direct_edit"
     OTHER = "other"

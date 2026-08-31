@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Interactive PromptPiperCode setup wizard (model / CPU-only configuration).
+# Interactive Nautilius Prompting Workbench setup wizard (model / CPU-only configuration).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

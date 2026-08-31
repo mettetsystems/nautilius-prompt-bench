@@ -43,7 +43,7 @@ class DemoRunResult:
     artifact_paths: list[Path]
 
     def print_summary(self) -> None:
-        print("PromptPiperCode demo complete")
+        print("Nautilius Prompting Workbench demo complete")
         print(f"  Session:   {self.session_id}")
         print(f"  Prompt ID: {self.prompt_id}")
         print(f"  Registry:  {self.registry_dir}")

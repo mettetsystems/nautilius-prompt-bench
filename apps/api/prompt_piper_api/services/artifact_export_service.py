@@ -30,7 +30,9 @@ from prompt_piper_api.services.artifact_service import (
     pandoc_available,
     weasyprint_available,
 )
+from prompt_piper_api.services.api_pack_export import build_api_pack, dumps_pack_value
 from prompt_piper_api.services.exceptions import InvalidPathError
+from prompt_piper_api.services.harness_prompt_builder import build_harness_body
 from prompt_piper_api.services.path_safety import safe_child_path, validate_prompt_id
 from prompt_piper_api.services.similarity_index_service import build_lessons_learned
 
@@ -40,9 +42,22 @@ _EXPORT_PATH_KEYS: dict[str, str] = {
     "canonical_txt": "canonical_prompt.txt",
     "optimized_md": "optimized_prompt.md",
     "optimized_txt": "optimized_prompt.txt",
+    "harness_md": "harness_prompt.md",
+    "harness_txt": "harness_prompt.txt",
     "requirement_card": "requirement_card.json",
     "coding_prompt_spec_json": "coding_prompt_spec.json",
     "coding_prompt_spec_yaml": "coding_prompt_spec.yaml",
+    "coding_harness_spec_json": "coding_harness_spec.json",
+    "api_pack_readme": "api_pack/README.md",
+    "api_openai": "api_pack/openai_chat_completions.json",
+    "api_anthropic": "api_pack/anthropic_messages.json",
+    "api_gemini": "api_pack/gemini_generate_content.json",
+    "api_cursor_json": "api_pack/cursor_agent.json",
+    "api_cursor_md": "api_pack/cursor_rules.md",
+    "api_copilot_json": "api_pack/copilot_instructions.json",
+    "api_copilot_md": "api_pack/copilot_instructions.md",
+    "api_continue_json": "api_pack/continue_config.json",
+    "api_continue_md": "api_pack/continue_system.md",
     "metrics": "metrics.json",
     "similarity_report": "similarity_report.json",
     "lessons_learned": "lessons_learned.md",
@@ -118,7 +133,7 @@ class _ExportWriteState:
 
 
 class ArtifactExportService:
-    """Write PromptPiperCode exports to unique folders under the Documents export root."""
+    """Write Nautilius Prompting Workbench exports to unique folders under the Documents export root."""
 
     def __init__(
         self,
@@ -267,22 +282,22 @@ class ArtifactExportService:
         optional: bool = False,
     ) -> Path:
         self._assert_under_artifact_root(export_dir)
-        path = export_dir / name
         safe = safe_child_path(export_dir, name)
         if safe is None:
             raise InvalidPathError("Artifact filename escapes export folder.", filename=name)
-        path.write_text(content, encoding="utf-8")
-        checksum = self.compute_sha256(path)
+        safe.parent.mkdir(parents=True, exist_ok=True)
+        safe.write_text(content, encoding="utf-8")
+        checksum = self.compute_sha256(safe)
         state.file_entries.append(
             ArtifactFileEntry(
                 name=name,
                 format=fmt,
-                size_bytes=path.stat().st_size,
+                size_bytes=safe.stat().st_size,
                 sha256=checksum,
                 optional=optional,
             )
         )
-        return path
+        return safe
 
     def write_json_artifact(
         self,
@@ -548,6 +563,30 @@ class ArtifactExportService:
             coding_spec,
             state=state,
         )
+
+        harness_source = optimized_body or canonical_body
+        # Prefer the optimized contract when it already has the long-horizon sections.
+        harness_body = build_harness_body(requirement_card)
+        source_lower = harness_source.lower()
+        if "long-horizon coding agent contract" in source_lower or "task identity" in source_lower:
+            harness_body = harness_source
+        api_pack = build_api_pack(
+            requirement_card,
+            harness_body=harness_body,
+            title=title,
+        )
+        for relative_name, value in api_pack.items():
+            text = dumps_pack_value(value)
+            fmt = "markdown" if relative_name.endswith(".md") else (
+                "json" if relative_name.endswith(".json") else "txt"
+            )
+            self.write_text_artifact(
+                export_dir,
+                relative_name,
+                text,
+                fmt=fmt,
+                state=state,
+            )
 
         metrics_payload: dict[str, object] = {
             "optimization": (

@@ -1,6 +1,6 @@
 # Web app (`apps/web/`)
 
-React 18 + TypeScript + Vite single-page app for the **PromptPiperCode** coding-prompt workflow UI (six dimensions, clarify → export).
+React 18 + TypeScript + Vite single-page app for the **Nautilius Prompting Workbench** long-horizon coding-agent workflow UI (16-question contract, clarify → export).
 
 
 ## Structure
@@ -15,11 +15,11 @@ React 18 + TypeScript + Vite single-page app for the **PromptPiperCode** coding-
 ## Run
 
 ```bash
-# From repo root — proxies /sessions, /registry, /health to :8000
+# From repo root — proxies /sessions, /registry, /health to :8010
 make dev-web
 ```
 
-Open http://127.0.0.1:5173. Production build is baked into `infra/Containerfile.web` (nginx).
+Open http://127.0.0.1:5174. Production build is baked into `infra/Containerfile.web` (nginx).
 
 ## Test
 

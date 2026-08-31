@@ -1,10 +1,10 @@
 # `@prompt-piper/shared`
 
-Minimal shared TypeScript types for **PromptPiperCode**, published as a local workspace package.
+Minimal shared TypeScript types for **Nautilius Prompting Workbench**, published as a local workspace package.
 
 | File | Role |
 |------|------|
-| `src/index.ts` | `APP_NAME` (`PromptPiperCode`), `APP_TAGLINE`, health response types |
+| `src/index.ts` | `APP_NAME` (`Nautilius Prompting Workbench`), `APP_TAGLINE`, health response types |
 | `package.json` | Package name and build config |
 | `tsconfig.json` | TypeScript project settings |
 

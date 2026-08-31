@@ -32,7 +32,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="PromptPiperCode API",
+        title="Nautilius Prompting Workbench API",
         description="Local-first prompt engineering workbench",
         version=__version__,
         lifespan=lifespan,
@@ -41,6 +41,8 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
+            "http://127.0.0.1:5174",
+            "http://localhost:5174",
             "http://127.0.0.1:5173",
             "http://localhost:5173",
         ],

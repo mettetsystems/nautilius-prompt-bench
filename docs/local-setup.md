@@ -1,6 +1,6 @@
 # Local setup
 
-PromptPiperCode local development and Podman deployment.
+Nautilius Prompting Workbench local development and Podman deployment.
 
 ## Prerequisites
 
@@ -11,7 +11,7 @@ PromptPiperCode local development and Podman deployment.
 
 ## Quick start
 
-Run these from the **PromptPiperCode repo root**:
+Run these from the **Nautilius Prompting Workbench repo root**:
 
 ```bash
 cp .env.example .env
@@ -21,11 +21,12 @@ make download-model  # if you skipped download during setup
 make ensure-llm      # verify GPU + llama-server + GGUF
 make dev-api         # terminal 1
 make dev-web         # terminal 2
+make shutdown        # stop API, Vite, llama-server, and any Podman/Quadlet stack
 ```
 
-- API: http://127.0.0.1:8000
-- API docs: http://127.0.0.1:8000/docs
-- Web: http://127.0.0.1:5173
+- API: http://127.0.0.1:8010
+- API docs: http://127.0.0.1:8010/docs
+- Web: http://127.0.0.1:5174
 
 ## Environment
 
@@ -34,9 +35,9 @@ Copy `.env.example` to `.env` at the repo root. Key variables:
 | Variable           | Default                              | Description                    |
 |--------------------|--------------------------------------|--------------------------------|
 | `DATABASE_URL`     | `sqlite:///./data/prompt_piper.db`   | SQLite or PostgreSQL URL       |
-| `REGISTRY_PATH`    | `./data/registry`                    | Git-backed prompt storage      |
+| `REGISTRY_PATH`    | `./data/registry`                    | Local prompt storage           |
 | `ARTIFACTS_PATH`   | `./data/artifacts`                   | Generated export files         |
-| `VITE_API_BASE_URL`| `http://127.0.0.1:8000`              | Frontend → API base URL        |
+| `VITE_API_BASE_URL`| `http://127.0.0.1:8010`              | Frontend → API base URL        |
 
 ### Local model wizard
 

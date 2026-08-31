@@ -1,0 +1,161 @@
+# Assistive LLM eval cases: initial_request -> expected RequirementCard leaf fills.
+# The extractor fills task identity from the request. Agent-contract policies stay unspecified.
+# Used by `python -m prompt_piper.eval.assistive` and tests/test_assistive_extraction_eval.py.
+
+cases:
+  - id: fastapi_users_create
+    initial_request: >
+      Coding prompt for a FastAPI + Pydantic v2 POST /users endpoint that accepts
+      email and full_name, returns 201 with id/email/full_name, and includes pytest
+      coverage for happy path and validation failure.
+    expected:
+      task_identity.environment: "FastAPI"
+      task_identity.task_type: "new feature"
+      task_identity.objective: "POST /users"
+
+  - id: refactor_pure_helpers
+    initial_request: >
+      Refactor the billing totals helper in our TypeScript Vite app into small pure
+      functions. Do not change UI. Prefer existing project deps only.
+    expected:
+      task_identity.environment: "TypeScript"
+      task_identity.task_type: "refactor"
+      task_identity.objective: "billing totals"
+
+  - id: debug_null_pointer
+    initial_request: >
+      Debug a NullPointerException in the Go order service when the cart is empty.
+      Return clear errors, do not invent rows.
+    expected:
+      task_identity.environment: "Go"
+      task_identity.task_type: "debug"
+      task_identity.objective: "NullPointerException"
+
+  - id: generate_pytest_suite
+    initial_request: >
+      Generate a pytest suite for the Python 3.12 invoice PDF renderer covering empty
+      line items and invalid currency codes.
+    expected:
+      task_identity.environment: "Python"
+      task_identity.task_type: "test"
+      task_identity.objective: "pytest"
+
+  - id: sql_report_query
+    initial_request: >
+      Write a SQL SELECT that returns weekly active users with columns user_id, week_start,
+      and event_count. No ORM.
+    expected:
+      task_identity.objective: "weekly active users"
+
+  - id: react_hook_form
+    initial_request: >
+      Implement a React hook that syncs form draft state to localStorage. Match existing
+      repo style. Include a usage example and verify steps.
+    expected:
+      task_identity.environment: "React"
+      task_identity.objective: "localStorage"
+
+  - id: stdlib_only_cli
+    initial_request: >
+      Build a Python stdlib-only CLI that reads JSON from stdin and prints validated
+      emails. Reject missing email fields with exit code 2.
+    expected:
+      task_identity.environment: "Python"
+      task_identity.objective: "CLI"
+
+  - id: async_fastapi_worker
+    initial_request: >
+      Add an async FastAPI background worker that retries upstream fetch failures three
+      times with backoff then raises DomainError.
+    expected:
+      task_identity.environment: "FastAPI"
+      task_identity.objective: "background worker"
+
+  - id: typescript_interface_impl
+    initial_request: >
+      Provide a TypeScript interface Result { id: string; ok: boolean } plus implementation
+      for parseResult(raw: unknown).
+    expected:
+      task_identity.environment: "TypeScript"
+      task_identity.objective: "parseResult"
+
+  - id: forbidden_heavy_frameworks
+    initial_request: >
+      Patch the existing Express route handler. No new heavy frameworks. Prefer packages
+      already in package.json.
+    expected:
+      task_identity.environment: "Express"
+      task_identity.objective: "Express"
+
+  - id: duplicate_id_conflict
+    initial_request: >
+      Create user upsert endpoint: duplicate id should return 409 conflict, empty body
+      returns empty success list for batch mode.
+    expected:
+      task_identity.objective: "upsert"
+
+  - id: migration_notes
+    initial_request: >
+      Add a DB migration for users.email_verified boolean default false, with migration
+      and rollback notes in the response.
+    expected:
+      task_identity.objective: "email_verified"
+
+  - id: vague_should_stay_unspecified
+    initial_request: "Write some good code for the API."
+    expected: {}
+    must_remain_unspecified:
+      - agent_contract.definition_of_done
+      - agent_contract.change_scope
+      - agent_contract.completion_contract
+
+  - id: greenfield_fastapi_crud
+    initial_request: >
+      Greenfield FastAPI CRUD for notes with title and body fields, JSON in/out, pytest
+      happy path plus validation failure example.
+    expected:
+      task_identity.environment: "FastAPI"
+      task_identity.objective: "notes"
+
+  - id: existing_repo_match_stack
+    initial_request: >
+      Match the existing repo stack and add input sanitization against injection for the
+      search endpoint.
+    expected:
+      task_identity.objective: "search endpoint"
+
+  - id: cancel_timeout_clean
+    initial_request: >
+      Long-running Python job must abort cleanly on timeout/cancel with no partial silent
+      writes.
+    expected:
+      task_identity.environment: "Python"
+      task_identity.objective: "timeout"
+
+  - id: typed_return_validation_error
+    initial_request: >
+      Library function should return User on success or raise ValidationError on bad input.
+    expected:
+      task_identity.objective: "ValidationError"
+      task_identity.task_type: "feature"
+
+  - id: cli_flags_path
+    initial_request: >
+      CLI tool with --input path.json that validates a schema and prints OK. Include the
+      command to run unit tests.
+    expected:
+      task_identity.objective: "--input"
+
+  - id: repository_pattern
+    initial_request: >
+      Refactor data access behind a repository pattern in our Python service. Keep coding
+      style matching the project.
+    expected:
+      task_identity.environment: "Python"
+      task_identity.task_type: "refactor"
+
+  - id: rate_limit_bad_input
+    initial_request: >
+      Handle upstream 429 rate limits with retry backoff; reject oversized payloads with 413.
+    expected:
+      task_identity.objective: "429"

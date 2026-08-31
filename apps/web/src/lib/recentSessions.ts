@@ -1,4 +1,5 @@
-export const RECENT_SESSIONS_KEY = "prompt-piper.recent-sessions";
+/** Browser recents for this app only — PromptPiper uses prompt-piper.recent-sessions. */
+export const RECENT_SESSIONS_KEY = "nautilius.recent-sessions";
 export const MAX_RECENT_SESSIONS = 20;
 
 import type { RecentSessionEntry, SessionDetailResponse } from "../api/types";

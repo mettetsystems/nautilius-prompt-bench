@@ -28,6 +28,12 @@ function sessionLoadErrorMessage(error: unknown): string {
       "In-memory sessions are cleared on reload — start a new session."
     );
   }
+  if (error instanceof ApiError && error.code === "validation_error") {
+    return formatApiError(
+      error,
+      "This session cannot be loaded with the current API schema. Start a new session.",
+    );
+  }
   return formatApiError(error, "Session not found or API unavailable.");
 }
 

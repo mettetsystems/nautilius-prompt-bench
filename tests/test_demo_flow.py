@@ -46,11 +46,9 @@ def test_coding_prompt_demo_end_to_end(
     )
     session_id = created.record.session.id
     assert created.clarification_field in {
-        "core_task_scope.objective",
-        "core_task_scope.task_type",
-        "technical_context.environment",
-        "inputs_outputs_contracts.output_contract",
-        "inputs_outputs_contracts.inputs",
+        "agent_contract.definition_of_done",
+        "agent_contract.change_scope",
+        "agent_contract.architecture_policy",
     }
 
     drive_session_to_edit(
@@ -76,7 +74,7 @@ def test_coding_prompt_demo_end_to_end(
     for phrase in demo_scenario.expected_after_edits_contains:
         assert phrase.lower() in edited_lower, f"missing after edits: {phrase}"
 
-    finalized = service.finalize(session_id)
+    finalized = service.finalize(session_id, acknowledge_first_shot_risk=True)
     prompt_id = finalized.prompt_id
     assert prompt_id
     assert finalized.similarity_result is not None

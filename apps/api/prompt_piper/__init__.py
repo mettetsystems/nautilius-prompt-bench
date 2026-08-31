@@ -1,1 +1,1 @@
-"""PromptPiperCode evaluation CLI package."""
+"""Nautilius Prompting Workbench evaluation CLI package."""

@@ -5,7 +5,7 @@ import httpx
 import pytest
 from prompt_piper_api.config import Settings
 from prompt_piper_api.domain.requirement_card import RequirementCard
-from prompt_piper_api.llm.base import ChatMessage
+from prompt_piper_api.llm.base import ChatMessage, LLMError
 from prompt_piper_api.llm.enums import ModelProfile, ModelProvider
 from prompt_piper_api.llm.factory import (
     ExternalProviderDisabledError,
@@ -77,7 +77,9 @@ def test_local_client_config_loads_from_settings() -> None:
         prompt_piper_local_base_url="http://127.0.0.1:9090/v1",
         prompt_piper_local_chat_model="local-chat",
         prompt_piper_local_embed_model="local-embed",
+        prompt_piper_local_model_preset=None,
         prompt_piper_model_profile=ModelProfile.QUALITY,
+        prompt_piper_llm_timeout_seconds=90.0,
     )
 
     chat_settings = load_local_chat_settings(settings)
@@ -90,6 +92,101 @@ def test_local_client_config_loads_from_settings() -> None:
     assert chat_settings.temperature == 0.4
     assert chat_settings.max_tokens == 2048
     assert client.embed_model_name == "local-embed"
+    assert client.timeout == 90.0
+
+
+def test_model_size_aware_max_tokens_for_tiny_preset() -> None:
+    settings = Settings(
+        prompt_piper_local_chat_model="qwen3-0.6b",
+        prompt_piper_local_model_preset="qwen3-0.6b",
+        prompt_piper_model_profile=ModelProfile.COMPATIBILITY,
+    )
+    chat_settings = load_local_chat_settings(settings)
+    assert chat_settings.max_tokens == 1024
+    assert chat_settings.temperature == 0.2
+
+
+def test_model_size_aware_max_tokens_for_large_quality() -> None:
+    settings = Settings(
+        prompt_piper_local_chat_model="qwen3-8b",
+        prompt_piper_local_model_preset="qwen3-8b",
+        prompt_piper_model_profile=ModelProfile.QUALITY,
+    )
+    chat_settings = load_local_chat_settings(settings)
+    assert chat_settings.max_tokens == 3072
+
+
+def test_local_client_retries_without_json_response_format() -> None:
+    settings = ModelSettings(
+        provider=ModelProvider.LOCAL_OPENAI_COMPATIBLE,
+        base_url="http://mock.local/v1",
+        model_name="llama",
+    )
+    client = LocalOpenAICompatibleClient(settings, timeout=45.0)
+
+    call_count = {"n": 0}
+    seen_max_tokens: list[int] = []
+
+    def fake_post(path: str, payload: dict) -> dict:  # type: ignore[type-arg]
+        call_count["n"] += 1
+        seen_max_tokens.append(int(payload["max_tokens"]))
+        if "response_format" in payload:
+            raise LLMError("HTTP 400: response_format json_object is not supported")
+        return {
+            "model": "llama",
+            "choices": [{"message": {"content": '```json\n{"ok": true}\n```'}}],
+        }
+
+    with patch.object(client, "_post", side_effect=fake_post):
+        response = client.chat(
+            [ChatMessage(role="user", content="hi")],
+            response_format={"type": "json_object"},
+            max_tokens=64,
+        )
+
+    assert call_count["n"] == 2
+    assert seen_max_tokens == [64, 64]
+    assert json.loads(response.content) == {"ok": True}
+    assert client._json_mode_unsupported is True
+
+
+def test_local_client_health_check_is_cached() -> None:
+    from prompt_piper_api.llm.local_openai import clear_health_cache
+
+    clear_health_cache()
+    settings = ModelSettings(
+        provider=ModelProvider.LOCAL_OPENAI_COMPATIBLE,
+        base_url="http://mock.local/v1",
+        model_name="llama",
+    )
+    client = LocalOpenAICompatibleClient(settings)
+    probe_count = {"n": 0}
+
+    class FakeResponse:
+        status_code = 200
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
+            del args, kwargs
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args) -> None:  # noqa: ANN002
+            del args
+
+        def get(self, url: str, headers: dict | None = None):  # noqa: ANN001
+            del url, headers
+            probe_count["n"] += 1
+            return FakeResponse()
+
+    with patch("prompt_piper_api.llm.local_openai.httpx.Client", FakeClient):
+        first = client.health_check()
+        second = client.health_check()
+
+    assert first.ok is True
+    assert second.ok is True
+    assert probe_count["n"] == 1
 
 
 def test_fallback_when_local_model_is_not_running() -> None:
@@ -111,18 +208,17 @@ def test_fallback_when_local_model_is_not_running() -> None:
 
     generator = DraftGenerator(client)
     draft = generator.generate(
-        RequirementCard(core_task_scope={"objective": "Summarize incidents"})
+        RequirementCard(task_identity={"objective": "Summarize incidents"})
     )
 
-    assert "Core Task and Scope" in draft.body
+    assert "Task Identity" in draft.body
     assert "unspecified" in draft.body.lower()
 
 
 def test_services_use_mock_llm_when_healthy() -> None:
     card_json = json.dumps(
         {
-            "core_task_scope": {"objective": "LLM parsed objective"},
-            "technical_context": {"environment": "Python with FastAPI"},
+            "task_identity": {"objective": "LLM parsed objective", "environment": "Python with FastAPI"},
         }
     )
 
@@ -133,7 +229,7 @@ def test_services_use_mock_llm_when_healthy() -> None:
     card = extractor.extract("ignored by mock")
 
     assert card.objective == "LLM parsed objective"
-    assert card.technical_context.environment == "Python with FastAPI"
+    assert card.task_identity.environment == "Python with FastAPI"
 
 
 def test_local_client_health_check_success() -> None:

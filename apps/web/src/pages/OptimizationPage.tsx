@@ -21,6 +21,10 @@ interface OptimizationPageProps {
 
 const DEFAULT_PRECISION_THRESHOLD = 0.75;
 
+function readinessReady(session: SessionDetailResponse): boolean {
+  return session.first_shot_readiness?.ready ?? true;
+}
+
 export function OptimizationPage({
   sessionId,
   session,
@@ -40,6 +44,10 @@ export function OptimizationPage({
   const showPrecisionRefinement = !readOnly && vagueLanguageCount > 0;
   const showPrecisionWarning =
     showPrecisionRefinement && semanticPrecisionScore < precisionThreshold;
+  const firstShotReady = preMetrics?.first_shot_ready ?? readinessReady(session);
+  const firstShotScore = preMetrics?.first_shot_readiness_score;
+  const sectionCoverage = preMetrics?.section_coverage;
+  const gateWarnings = session.quality_gate_warnings ?? [];
 
   const approveError =
     approve.error != null
@@ -64,8 +72,8 @@ export function OptimizationPage({
   return (
     <div className="page">
       <PageHeader
-        title="Token optimization"
-        subtitle="Review the optimized prompt, metrics, and change log before approving export."
+        title="Clarity optimization"
+        subtitle="Review the clarified long-horizon contract, metrics, and change log before approving export. Token count is informational — clarity comes first."
       />
 
       {optimization.hard_conflicts.length > 0 && (
@@ -73,6 +81,23 @@ export function OptimizationPage({
           message={`${optimization.hard_conflicts.length} hard conflict(s) require resolution before export.`}
         />
       )}
+
+      {!firstShotReady && (
+        <WarningBanner message="First-shot readiness gaps remain. Prefer filling definition of done, validation, and completion evidence before a long-horizon run." />
+      )}
+      {showPrecisionWarning && (
+        <WarningBanner
+          message={`Semantic precision ${formatPercent(semanticPrecisionScore)} is below the ${formatPercent(precisionThreshold)} threshold.`}
+        />
+      )}
+      {typeof sectionCoverage === "number" && sectionCoverage < 17 && (
+        <WarningBanner
+          message={`Only ${sectionCoverage}/17 contract sections are present; Task Identity plus the 16 operational policies improve long-horizon adherence.`}
+        />
+      )}
+      {gateWarnings.map((warning) => (
+        <WarningBanner key={warning} message={warning} />
+      ))}
 
       <div className="grid-two">
         <Panel title="Optimized prompt">
@@ -82,15 +107,19 @@ export function OptimizationPage({
         <Panel title="Metrics">
           <dl className="metrics-grid">
             <div>
+              <dt>Clarity</dt>
+              <dd>{formatPercent(metrics.targets.clarity ?? 0)}</dd>
+            </div>
+            <div>
               <dt>Original tokens</dt>
               <dd>{metrics.original_token_count}</dd>
             </div>
             <div>
-              <dt>Optimized tokens</dt>
+              <dt>Result tokens</dt>
               <dd>{metrics.optimized_token_count}</dd>
             </div>
             <div>
-              <dt>Reduction</dt>
+              <dt>Token reduction</dt>
               <dd>{metrics.token_reduction_pct.toFixed(1)}%</dd>
             </div>
             <div>
@@ -124,6 +153,23 @@ export function OptimizationPage({
                 {vagueLanguageCount > 0 ? ` (${vagueLanguageCount} vague)` : ""}
               </dd>
             </div>
+            {typeof firstShotScore === "number" && (
+              <div>
+                <dt>First-shot readiness</dt>
+                <dd>
+                  {formatPercent(firstShotScore)}
+                  {firstShotReady ? "" : " (gaps)"}
+                </dd>
+              </div>
+            )}
+            {typeof sectionCoverage === "number" && (
+              <div>
+                <dt>Section coverage</dt>
+                <dd>
+                  {sectionCoverage}/17
+                </dd>
+              </div>
+            )}
           </dl>
           {!modelEnabled && showPrecisionRefinement && (
             <p className="muted">
@@ -134,7 +180,7 @@ export function OptimizationPage({
           )}
           {showPrecisionWarning && (
             <WarningBanner
-              message={`Your semantic precision score is ${formatPercent(semanticPrecisionScore)} (below ${formatPercent(precisionThreshold)}). Vague wording may greatly increase token consumption during inference. It is highly recommended that you refine precision before approving export.`}
+                  message={`Your semantic precision score is ${formatPercent(semanticPrecisionScore)} (below ${formatPercent(precisionThreshold)}). Vague wording hurts long-horizon agents more than extra tokens. Refine precision before approving export.`}
             />
           )}
           {showPrecisionRefinement && (
@@ -164,12 +210,12 @@ export function OptimizationPage({
             </ul>
           )}
         </Panel>
-        <Panel title="Compressed">
-          {optimization.changes.compressed.length === 0 ? (
+        <Panel title="Clarified">
+          {(optimization.changes.clarified ?? optimization.changes.compressed).length === 0 ? (
             <p className="muted">None</p>
           ) : (
             <ul className="compact-list">
-              {optimization.changes.compressed.map((item) => (
+              {(optimization.changes.clarified ?? optimization.changes.compressed).map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ul>

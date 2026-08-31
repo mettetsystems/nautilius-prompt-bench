@@ -16,7 +16,7 @@ Bash helpers invoked by `Makefile` targets. Run from repo root unless noted.
 | `init-db-quadlet.sh` | — | DB init variant for Quadlet deployments |
 | `install-quadlets.sh` | — | Install user systemd Quadlet units |
 | `persistent-install.sh` | `make persistent-install-cpu` / `make persistent-install-ai` | Build, test, Quadlet+systemd install, open browser |
-| `export-images.sh` | `make export` | Build images and save an offline `.tar` bundle |
+| `wipe-registry.sh` | `make wipe-registry` | Delete local finalized-prompt registry (`--sessions`, `--similarity`, `--yes`) |
 
 ```bash
 # Example: start native API with auto-LLM

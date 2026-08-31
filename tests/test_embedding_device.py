@@ -51,4 +51,4 @@ def test_upsert_lexicon_env_section_writes_managed_block(tmp_path: Path) -> None
     assert "API_PORT=8000" in text
     assert "PROMPT_PIPER_EMBEDDING_DEVICE=cpu" in text
     assert "GTX 1050 uses CPU embeddings" in text
-    assert text.count("# --- Precision lexicon (PromptPiperCode setup) ---") == 1
+    assert text.count("# --- Precision lexicon (Nautilius Prompting Workbench setup) ---") == 1

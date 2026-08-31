@@ -80,17 +80,23 @@ export function askTheLocals(sessionId: string): Promise<AskTheLocalsResponse> {
 
 export function editDraft(
   sessionId: string,
-  instruction: string,
+  payload: { instruction: string } | { body: string },
 ): Promise<SessionDetailResponse> {
   return apiFetch<SessionDetailResponse>(`/sessions/${sessionId}/edit`, {
     method: "POST",
-    body: JSON.stringify({ instruction }),
+    body: JSON.stringify(payload),
   });
 }
 
-export function finalizeSession(sessionId: string): Promise<SessionDetailResponse> {
+export function finalizeSession(
+  sessionId: string,
+  options?: { acknowledgeFirstShotRisk?: boolean },
+): Promise<SessionDetailResponse> {
   return apiFetch<SessionDetailResponse>(`/sessions/${sessionId}/finalize`, {
     method: "POST",
+    body: JSON.stringify({
+      acknowledge_first_shot_risk: options?.acknowledgeFirstShotRisk ?? false,
+    }),
   });
 }
 

@@ -2,7 +2,7 @@
   "name": "prompt-piper",
   "private": true,
   "version": "0.1.0",
-  "description": "Local-first prompt engineering workbench",
+  "description": "Local-first long-horizon coding-agent prompting workbench",
   "workspaces": [
     "apps/web",
     "packages/shared"

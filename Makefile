@@ -1,4 +1,4 @@
-.PHONY: help install install-api install-web setup setup-lexicon setup-lexicon-embed build-lexicon-index setup-lexicon-all setup-model-deps download-model ensure-llm llama-down shutdown stop dev dev-api dev-web test lint typecheck format clean demo podman-up podman-down podman-logs podman-init-db persistent-install-cpu persistent-install-ai export
+.PHONY: help install install-api install-web setup setup-lexicon setup-lexicon-embed build-lexicon-index setup-lexicon-all setup-model-deps download-model ensure-llm llama-down shutdown stop dev dev-api dev-web test lint typecheck format clean demo eval eval-assistive podman-up podman-down podman-logs podman-init-db persistent-install-cpu persistent-install-ai export wipe-registry
 
 ROOT := $(CURDIR)
 API_DIR := $(ROOT)/apps/api
@@ -8,7 +8,7 @@ PYTHON := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 
 help:
-	@echo "PromptPiperCode — common tasks"
+	@echo "Nautilius Prompting Workbench — common tasks"
 	@echo ""
 	@echo "  make install           Install backend, frontend, and WordNet lexicon deps"
 	@echo "  make setup             Interactive wizard + optional GGUF download + lexicon"
@@ -19,7 +19,7 @@ help:
 	@echo "  make build-lexicon-index Build semantic precision vector index (CPU embed)"
 	@echo "  make setup-lexicon-all WordNet + embeddings + index (skips index if present)"
 	@echo "  make ensure-llm        Probe GPU and start llama-server, or fall back to CPU mode"
-	@echo "  make llama-down        Stop PromptPiperCode-managed llama-server"
+	@echo "  make llama-down        Stop Nautilius-managed llama-server"
 	@echo "  make shutdown          Stop API, Vite, llama-server, Podman, and Quadlets"
 	@echo "  make stop              Same as make shutdown"
 	@echo "  make persistent-install-cpu  Quadlet+systemd CPU install (build, test, browser)"
@@ -31,6 +31,7 @@ help:
 	@echo "  make dev-web           Run Vite dev server"
 	@echo "  make test              Run backend and integration tests"
 	@echo "  make eval              Run local pre-inference quality gate evals"
+	@echo "  make eval-assistive    Run assistive extraction leaf-match evals"
 	@echo "  make lint              Run ruff on backend"
 	@echo "  make typecheck         Run mypy on backend"
 	@echo "  make format            Format backend with ruff"
@@ -40,6 +41,7 @@ help:
 	@echo "  make podman-logs       Follow Podman service logs"
 	@echo "  make podman-init-db    Ensure pgvector + app tables"
 	@echo "  make clean             Remove build artifacts and caches"
+	@echo "  make wipe-registry     Delete local finalized prompts (add --sessions via script)"
 
 install: install-api install-web setup-lexicon-embed setup-lexicon
 	@echo ""
@@ -72,7 +74,7 @@ download-model:
 	$(ROOT)/scripts/download-model.sh
 
 install-api:
-	cd $(API_DIR) && python3 -m venv .venv
+	cd $(API_DIR) && python3 -m venv --clear .venv
 	$(PIP) install -e "$(API_DIR)[dev,lexicon]"
 
 install-web:
@@ -94,7 +96,7 @@ stop: shutdown
 
 dev-web:
 	cd $(WEB_DIR) && npm run dev
-	@echo "Web UI: http://127.0.0.1:5173 (requires 'make dev-api' in another terminal)"
+	@echo "Web UI: http://127.0.0.1:5174 (requires 'make dev-api' in another terminal)"
 
 dev:
 	@echo "Run 'make dev-api' and 'make dev-web' in separate terminals."
@@ -116,6 +118,9 @@ typecheck:
 
 eval:
 	cd $(ROOT) && $(PYTHON) -m prompt_piper.eval run
+
+eval-assistive:
+	cd $(ROOT) && $(PYTHON) -m prompt_piper.eval.assistive
 
 demo:
 	cd $(ROOT) && $(PYTHON) -m prompt_piper.demo
@@ -144,6 +149,9 @@ persistent-install-ai:
 
 export:
 	$(ROOT)/scripts/export-images.sh $(if $(WITH_AI),--with-ai,)
+
+wipe-registry:
+	$(ROOT)/scripts/wipe-registry.sh
 
 clean:
 	rm -rf $(API_DIR)/.venv $(WEB_DIR)/node_modules $(ROOT)/packages/shared/node_modules

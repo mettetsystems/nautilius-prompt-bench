@@ -43,7 +43,7 @@ def test_finalization_writes_registry_files(
     session_id = _enter_edit_state(service)
     service.edit_draft(session_id, "Change tone to analytical")
 
-    result = service.finalize(session_id)
+    result = service.finalize(session_id, acknowledge_first_shot_risk=True)
     prompt_id = result.prompt_id
     assert prompt_id
     assert result.registry_warning is None
@@ -72,7 +72,7 @@ def test_canonical_prompt_is_immutable_after_finalization(
     registry_path: Path,
 ) -> None:
     session_id = _enter_edit_state(service)
-    finalized = service.finalize(session_id)
+    finalized = service.finalize(session_id, acknowledge_first_shot_risk=True)
     prompt_id = finalized.prompt_id
     assert prompt_id
     assert finalized.draft is not None
@@ -93,7 +93,7 @@ def test_metadata_is_human_readable_yaml(
     registry_path: Path,
 ) -> None:
     session_id = _enter_edit_state(service)
-    result = service.finalize(session_id)
+    result = service.finalize(session_id, acknowledge_first_shot_risk=True)
     prompt_id = result.prompt_id
     assert prompt_id
 
@@ -123,49 +123,26 @@ def test_metadata_is_human_readable_yaml(
         assert key in metadata
 
 
-def test_registry_can_initialize_without_existing_git_repo(
+def test_registry_writes_local_files_without_git(
     registry_path: Path,
     service: SessionService,
 ) -> None:
     assert not registry_path.exists()
 
     session_id = _enter_edit_state(service)
-    result = service.finalize(session_id)
+    result = service.finalize(session_id, acknowledge_first_shot_risk=True)
 
     assert registry_path.is_dir()
-    assert (registry_path / ".git").is_dir()
+    assert not (registry_path / ".git").exists()
     assert result.registry_warning is None
-
-
-def test_warning_returned_if_git_commit_fails(
-    registry_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    registry = GitRegistryService(registry_path)
-    service = SessionService(llm=None, registry=registry)
-    session_id = _enter_edit_state(service)
-
-    def fail_commit(_prompt_id: str, _version: int) -> tuple[None, str]:
-        return None, "Git commit failed: simulated failure"
-
-    monkeypatch.setattr(registry, "_commit_prompt", fail_commit)
-
-    result = service.finalize(session_id)
-    prompt_id = result.prompt_id
-    assert prompt_id
-    assert result.registry_warning is not None
-    assert "Git commit failed" in result.registry_warning
-
-    prompt_dir = registry_path / prompt_id
-    assert (prompt_dir / "metadata.yaml").is_file()
-    assert (prompt_dir / "canonical_prompt.txt").is_file()
+    assert (registry_path / result.prompt_id / "metadata.yaml").is_file()
 
 
 def test_finalize_assigns_prompt_id_and_preserves_session_state(
     service: SessionService,
 ) -> None:
     session_id = _enter_edit_state(service)
-    result = service.finalize(session_id)
+    result = service.finalize(session_id, acknowledge_first_shot_risk=True)
 
     record = service.get_session(session_id)
     assert record.session.prompt_id == result.prompt_id

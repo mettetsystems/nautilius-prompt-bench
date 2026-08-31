@@ -1,10 +1,10 @@
 title: FastAPI user-create coding prompt
 initial_request: >
-  I need a coding prompt that helps an AI implement a FastAPI + Pydantic feature:
+  I need a long-horizon coding-agent prompt that helps an AI implement a FastAPI + Pydantic feature:
   a POST /users endpoint that validates input and returns the created user.
 clarification_answers:
-  - 201 JSON with id, email, and full_name
-  - JSON body with email and full_name
+  - "Recommended: evidence-based COMPLETE / PARTIAL / BLOCKED / FAILED"
+  - "Recommended: minimum necessary change"
 edit_instructions:
   - "Add constraint: sanitize email input against injection and keep responses concise"
   - "Change output contract to TypeScript-style interface plus FastAPI handler with pytest"
@@ -12,9 +12,8 @@ expected_initial_draft_contains:
   - FastAPI
   - Pydantic
   - users
-  - Core Task and Scope
-  - Technical Context
-  - Inputs, Outputs, and Contracts
+  - Task Identity
+  - Definition of Done
   - unspecified
 expected_after_edits_contains:
   - sanitize

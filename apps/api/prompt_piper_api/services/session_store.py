@@ -4,6 +4,9 @@ from pathlib import Path
 from typing import Protocol
 from uuid import UUID
 
+from pydantic import ValidationError
+
+from prompt_piper_api.services.exceptions import SessionLoadError
 from prompt_piper_api.services.session_record import SessionRecord
 
 
@@ -45,7 +48,10 @@ class FileSessionStore:
         path = self._path(session_id)
         if not path.is_file():
             return None
-        return SessionRecord.model_validate_json(path.read_text(encoding="utf-8"))
+        try:
+            return SessionRecord.model_validate_json(path.read_text(encoding="utf-8"))
+        except ValidationError as exc:
+            raise SessionLoadError(str(session_id)) from exc
 
     def save(self, record: SessionRecord) -> None:
         path = self._path(record.session.id)

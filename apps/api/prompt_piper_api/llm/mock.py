@@ -34,6 +34,8 @@ class MockLLMClient:
         self._healthy = healthy
         self.chat_calls: list[list[ChatMessage]] = []
         self.embed_calls: list[list[str]] = []
+        self.last_chat_max_tokens: int | None = None
+        self.last_chat_response_format: dict[str, Any] | None = None
 
     @property
     def provider(self) -> ModelProvider:
@@ -48,8 +50,11 @@ class MockLLMClient:
         messages: list[ChatMessage],
         *,
         response_format: dict[str, Any] | None = None,
+        max_tokens: int | None = None,
     ) -> ChatResponse:
         self.chat_calls.append(messages)
+        self.last_chat_max_tokens = max_tokens
+        self.last_chat_response_format = response_format
         content = self._chat_responder(messages)
         return ChatResponse(
             content=content, model=self._settings.model_name, provider=self.provider

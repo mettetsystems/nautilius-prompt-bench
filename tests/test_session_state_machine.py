@@ -52,7 +52,7 @@ def test_finalize_not_allowed_before_edit_state(client: TestClient) -> None:
     create = client.post("/sessions", json={"initial_request": "Draft a support macro"})
     session_id = create.json()["session"]["id"]
 
-    finalize = client.post(f"/sessions/{session_id}/finalize")
+    finalize = client.post(f"/sessions/{session_id}/finalize", json={"acknowledge_first_shot_risk": True})
     assert finalize.status_code == 409
     assert finalize.json()["action"] == "finalize"
 
@@ -68,7 +68,7 @@ def test_finalization_marks_canonical_draft(client: TestClient) -> None:
     assert edit.status_code == 200
     assert edit.json()["semantic_diff"]
 
-    finalize = client.post(f"/sessions/{session_id}/finalize")
+    finalize = client.post(f"/sessions/{session_id}/finalize", json={"acknowledge_first_shot_risk": True})
     assert finalize.status_code == 200
     body = finalize.json()
 
@@ -110,7 +110,7 @@ def test_finalize_only_from_edit_state(service: SessionService) -> None:
     session_id = created.record.session.id
 
     with pytest.raises(StateTransitionError):
-        service.finalize(session_id)
+        service.finalize(session_id, acknowledge_first_shot_risk=True)
 
 
 def test_edit_regenerates_draft_with_semantic_diff(service: SessionService) -> None:

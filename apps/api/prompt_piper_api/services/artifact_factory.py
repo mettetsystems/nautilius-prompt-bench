@@ -20,7 +20,7 @@ def create_artifact_export_service(
         resolved_host = settings.prompt_piper_host_export_root
         resolved_artifact = settings.prompt_piper_artifact_root or settings.artifacts_path
     else:
-        resolved_export = export_root or Path.home() / "Documents" / "PromptPiperCode"
+        resolved_export = export_root or Path.home() / "Documents" / "Nautilius"
         resolved_host = host_export_root or resolved_export
         resolved_artifact = artifact_root or (resolved_export / "exports")
 

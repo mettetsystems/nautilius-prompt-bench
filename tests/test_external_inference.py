@@ -135,7 +135,7 @@ def _enter_approval_state(service: SessionService, *, body: str | None = None) -
     record.session.requirement_card.unresolved_fields = []
     if body is not None:
         record.drafts[-1].body = body
-    service.finalize(session_id)
+    service.finalize(session_id, acknowledge_first_shot_risk=True)
     service.optimize(session_id)
     service.approve_optimization(session_id)
     service.generate_artifacts(session_id)
@@ -184,7 +184,7 @@ def test_unoptimized_prompt_cannot_be_sent(
     )
     record = service.get_session(session_id)
     record.session.requirement_card.unresolved_fields = []
-    service.finalize(session_id)
+    service.finalize(session_id, acknowledge_first_shot_risk=True)
 
     with pytest.raises(ExternalInferenceBlockedError, match="optimized"):
         service.send_to_inference(session_id, explicit_approval=True)

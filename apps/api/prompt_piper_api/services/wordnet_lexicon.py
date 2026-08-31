@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -184,6 +185,8 @@ class WordNetLexicon:
         if self._wordnet_checked:
             return self._wordnet
         self._wordnet_checked = True
+        # NLTK 3.10+ treats site-packages under CWD (repo-local venv) as hijacks.
+        os.environ.setdefault("NLTK_DISABLE_IMPORT_SECURITY", "1")
         try:
             import nltk  # noqa: PLC0415
             from nltk.corpus import wordnet as wordnet_corpus  # noqa: PLC0415

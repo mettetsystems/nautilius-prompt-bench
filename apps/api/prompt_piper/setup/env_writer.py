@@ -23,9 +23,9 @@ _LEXICON_MANAGED_KEYS = frozenset(
     }
 )
 
-_SECTION_BEGIN = "# --- Local LLM (PromptPiperCode setup wizard) ---"
+_SECTION_BEGIN = "# --- Local LLM (Nautilius Prompting Workbench setup wizard) ---"
 _SECTION_END = "# --- End local LLM setup ---"
-_LEXICON_SECTION_BEGIN = "# --- Precision lexicon (PromptPiperCode setup) ---"
+_LEXICON_SECTION_BEGIN = "# --- Precision lexicon (Nautilius Prompting Workbench setup) ---"
 _LEXICON_SECTION_END = "# --- End precision lexicon setup ---"
 
 

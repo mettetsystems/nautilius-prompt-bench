@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start the full local PromptPiperCode Podman stack (postgres + api + web).
+# Start the full local Nautilius Prompting Workbench Podman stack (postgres + api + web).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -11,9 +11,9 @@ if ! command -v podman >/dev/null 2>&1; then
 fi
 
 mkdir -p \
-  "${HOME}/Documents/PromptPiperCode/exports" \
-  "${HOME}/Documents/PromptPiperCode/registry" \
-  "${HOME}/Documents/PromptPiperCode/audit" \
+  "${HOME}/Documents/Nautilius/exports" \
+  "${HOME}/Documents/Nautilius/registry" \
+  "${HOME}/Documents/Nautilius/audit" \
   data/model-cache \
   data/postgres \
   data/nltk_data \
@@ -40,21 +40,21 @@ if [[ -x "${ROOT}/apps/api/.venv/bin/python" ]]; then
   fi
 fi
 
-echo "Building and starting PromptPiperCode containers..."
+echo "Building and starting Nautilius Prompting Workbench containers..."
 podman compose -f infra/podman-compose.yml up -d --build
 
 "${ROOT}/scripts/init-db.sh"
 
 cat <<EOF
 
-PromptPiperCode is running locally.
+Nautilius Prompting Workbench is running locally.
 
-  Web UI:  http://127.0.0.1:5173
-  API:     http://127.0.0.1:8000
-  API docs http://127.0.0.1:8000/docs
+  Web UI:  http://127.0.0.1:5174
+  API:     http://127.0.0.1:8010
+  API docs http://127.0.0.1:8010/docs
   Postgres localhost:5432 (user/db from .env)
 
-Exports:  ~/Documents/PromptPiperCode/exports
+Exports:  ~/Documents/Nautilius/exports
 
 Logs:  ./scripts/dev-logs.sh
 Stop:  ./scripts/dev-down.sh

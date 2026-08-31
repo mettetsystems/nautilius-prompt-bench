@@ -8,7 +8,12 @@ from prompt_piper_api.domain.pre_inference_metrics import PreInferenceMetrics
 from prompt_piper_api.domain.requirement_card import RequirementCard
 from prompt_piper_api.services.draft_generator import UNSPECIFIED
 from prompt_piper_api.services.embedding_service import EmbeddingService
-from prompt_piper_api.services.format_checker import format_adherence_score
+from prompt_piper_api.services.format_checker import (
+    coding_section_coverage,
+    format_adherence_score,
+    harness_section_coverage,
+)
+from prompt_piper_api.services.first_shot_readiness import assess_first_shot_readiness
 from prompt_piper_api.services.optimization.constraint_graph_pass import ConstraintGraphPass
 from prompt_piper_api.services.optimization.metrics import OptimizationMetricsCalculator
 from prompt_piper_api.services.requirement_capture import RequirementCaptureEvaluator
@@ -16,26 +21,27 @@ from prompt_piper_api.services.semantic_precision import SemanticPrecisionEvalua
 from prompt_piper_api.services.tokenizer_approx import estimate_token_cost
 
 _FIELD_SECTION_HINTS: dict[str, tuple[str, ...]] = {
-    "core_task_scope.objective": ("objective", "core task"),
-    "core_task_scope.task_type": ("task type", "core task"),
-    "core_task_scope.out_of_scope": ("out of scope", "core task"),
-    "technical_context.environment": ("environment", "technical context"),
-    "technical_context.integration_points": ("integration points", "technical context"),
-    "technical_context.dependency_policy": ("dependency policy", "technical context"),
-    "technical_context.forbidden_libraries": ("forbidden libraries", "technical context"),
-    "inputs_outputs_contracts.inputs": ("inputs", "inputs, outputs"),
-    "inputs_outputs_contracts.output_contract": ("output contract", "inputs, outputs"),
-    "inputs_outputs_contracts.examples": ("example", "inputs, outputs"),
-    "architectural_rules.design_patterns": ("design patterns", "architectural"),
-    "architectural_rules.coding_style": ("coding style", "architectural"),
-    "architectural_rules.non_functional": ("non-functional", "architectural"),
-    "edge_cases_error_strategy.failure_handling": ("failure handling", "edge cases"),
-    "edge_cases_error_strategy.bad_inputs": ("bad inputs", "edge cases"),
-    "edge_cases_error_strategy.edge_cases": ("edge case", "edge cases"),
-    "response_formatting.explanation_level": ("explanation level", "response formatting"),
-    "response_formatting.verbosity": ("verbosity", "response formatting"),
-    "response_formatting.extra_artifacts": ("extra artifacts", "response formatting"),
-    "optimization_targets": ("optimization", "technical context"),
+    "task_identity.objective": ("objective", "task identity"),
+    "task_identity.task_type": ("task type", "task identity"),
+    "task_identity.environment": ("environment", "task identity"),
+    "task_identity.additional_constraints": ("additional constraint", "task identity"),
+    "agent_contract.definition_of_done": ("definition of done", "complete"),
+    "agent_contract.change_scope": ("change scope", "minimum"),
+    "agent_contract.architecture_policy": ("architecture policy", "patterns"),
+    "agent_contract.discovery_policy": ("discovery policy", "inspect"),
+    "agent_contract.execution_strategy": ("execution strategy", "lifecycle"),
+    "agent_contract.validation_strategy": ("validation strategy", "validation pyramid"),
+    "agent_contract.failure_recovery": ("failure recovery", "hypothesis"),
+    "agent_contract.autonomy_policy": ("autonomy policy", "escalate"),
+    "agent_contract.persistent_memory": ("persistent agent memory", ".agent/"),
+    "agent_contract.completion_contract": ("completion contract", "acceptance criteria"),
+    "agent_contract.resource_budget": ("resource and budget", "api calls"),
+    "agent_contract.tool_safety": ("tool safety", "sandbox"),
+    "agent_contract.context_compaction": ("context compaction", "window"),
+    "agent_contract.rollback_protocol": ("rollback", "checkpoint"),
+    "agent_contract.escalation_rules": ("escalation", "human"),
+    "agent_contract.dependency_security": ("dependency", "license"),
+    "optimization_targets": ("optimization", "task identity"),
 }
 
 
@@ -93,6 +99,10 @@ class PreInferenceMetricsService:
             ).targets
 
         precision = self._precision.evaluate(body)
+        readiness = assess_first_shot_readiness(card)
+        draft_coverage = coding_section_coverage(body)
+        harness_coverage = harness_section_coverage(body)
+        section_coverage = max(draft_coverage, harness_coverage)
 
         return PreInferenceMetrics(
             requirement_capture_score=self._capture.score(
@@ -112,6 +122,9 @@ class PreInferenceMetricsService:
             deconfliction_score=targets.deconfliction,
             semantic_precision_score=precision.score,
             vague_language_count=len(precision.findings),
+            first_shot_readiness_score=readiness.score,
+            first_shot_ready=readiness.ready,
+            section_coverage=section_coverage,
         )
 
     def _unspecified_field_honesty(self, body: str, card: RequirementCard) -> float:
@@ -166,7 +179,7 @@ class PreInferenceMetricsService:
         score = 0.0
         if any(
             line.lower().startswith(
-                ("technical context", "core task", "architectural", "inputs")
+                ("task identity", "definition of done", "change scope", "architecture")
             )
             for line in lines
         ):

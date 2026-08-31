@@ -64,7 +64,7 @@ def test_export_folder_created_under_exports_exports(tmp_path: Path) -> None:
     export_service = ArtifactExportService(
         ArtifactService(artifact_root),
         export_root=export_root,
-        host_export_root=tmp_path / "Documents" / "PromptPiperCode",
+        host_export_root=tmp_path / "Documents" / "Nautilius",
         artifact_root=artifact_root,
     )
     prompt_id = build_prompt_id("Weekly status", uuid4())
@@ -120,7 +120,7 @@ def test_artifact_manifest_includes_all_files(tmp_path: Path) -> None:
         title="Weekly status",
         canonical_body="Canonical weekly status prompt.",
         optimized_body=optimization.optimized_body,
-        requirement_card=RequirementCard(core_task_scope={"objective": "Summarize weekly status."}),
+        requirement_card=RequirementCard(task_identity={"objective": "Summarize weekly status."}),
         registry_metadata=None,
         optimization_result=optimization,
         pre_inference_metrics=None,
@@ -130,12 +130,18 @@ def test_artifact_manifest_includes_all_files(tmp_path: Path) -> None:
 
     manifest_path = Path(result.container_export_path) / "artifact_manifest.json"
     manifest = json.loads(manifest_path.read_text())
+    export_root = Path(result.container_export_path)
     disk_names = {
-        path.name for path in Path(result.container_export_path).iterdir() if path.is_file()
+        str(path.relative_to(export_root))
+        for path in export_root.rglob("*")
+        if path.is_file()
     }
     manifest_names = {entry["name"] for entry in manifest["files"]}
     assert manifest_names.issubset(disk_names)
     assert "canonical_prompt.txt" in manifest_names
+    assert "harness_prompt.md" in manifest_names
+    assert "api_pack/openai_chat_completions.json" in manifest_names
+    assert "api_pack/cursor_rules.md" in manifest_names
     assert "artifact_manifest.json" in manifest_names
     assert "export_audit.json" in manifest_names
 
@@ -151,7 +157,7 @@ def test_manifest_files_include_checksums(tmp_path: Path) -> None:
         title="Weekly status",
         canonical_body="Canonical body.",
         optimized_body=optimization.optimized_body,
-        requirement_card=RequirementCard(core_task_scope={"objective": "Weekly status."}),
+        requirement_card=RequirementCard(task_identity={"objective": "Weekly status."}),
         registry_metadata=None,
         optimization_result=optimization,
         pre_inference_metrics=None,
@@ -191,7 +197,7 @@ def test_missing_pdf_tools_produce_warning_instead_of_crash(
         title="Weekly status",
         canonical_body="Canonical body.",
         optimized_body=optimization.optimized_body,
-        requirement_card=RequirementCard(core_task_scope={"objective": "Weekly status."}),
+        requirement_card=RequirementCard(task_identity={"objective": "Weekly status."}),
         registry_metadata=None,
         optimization_result=optimization,
         pre_inference_metrics=None,
@@ -212,7 +218,7 @@ def test_no_artifact_written_outside_export_root(tmp_path: Path) -> None:
     export_service = ArtifactExportService(
         ArtifactService(artifact_root),
         export_root=export_root,
-        host_export_root=tmp_path / "Documents" / "PromptPiperCode",
+        host_export_root=tmp_path / "Documents" / "Nautilius",
         artifact_root=artifact_root,
     )
     outside = tmp_path / "outside" / "escape.txt"
@@ -226,14 +232,14 @@ def test_export_root_defaults_to_exports_in_container(monkeypatch: pytest.Monkey
     monkeypatch.setenv("PROMPT_PIPER_EXPORT_ROOT", "/exports")
     monkeypatch.setenv(
         "PROMPT_PIPER_HOST_EXPORT_ROOT",
-        str(Path.home() / "Documents" / "PromptPiperCode"),
+        str(Path.home() / "Documents" / "Nautilius"),
     )
     settings = Settings()
     assert settings.prompt_piper_export_root == Path("/exports")
     assert settings.artifacts_path == Path("/exports/exports")
 
 
-def test_host_export_root_defaults_to_documents_prompt_piper_code(
+def test_host_export_root_defaults_to_documents_nautilius(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     for key in (
@@ -245,7 +251,7 @@ def test_host_export_root_defaults_to_documents_prompt_piper_code(
     ):
         monkeypatch.delenv(key, raising=False)
     settings = Settings()
-    expected = Path.home() / "Documents" / "PromptPiperCode"
+    expected = Path.home() / "Documents" / "Nautilius"
     assert settings.prompt_piper_host_export_root == expected
 
 

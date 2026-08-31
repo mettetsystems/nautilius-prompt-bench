@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install PromptPiperCode Quadlet units for rootless Podman (Fedora).
+# Install Nautilius Prompting Workbench Quadlet units for rootless Podman (Fedora).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -11,13 +11,13 @@ START=0
 QUIET=0
 
 # Path token used in shipped Quadlet files (repo expected under $HOME by default).
-DEFAULT_REPO_TOKEN="%h/PromptPiperCode"
+DEFAULT_REPO_TOKEN="%h/nautilius-prompt-bench"
 
 usage() {
   cat <<EOF
 Usage: $(basename "$0") [--method compose|containers] [--profiles LIST] [--start] [--quiet]
 
-Install PromptPiperCode Quadlet units into:
+Install Nautilius Prompting Workbench Quadlet units into:
   ${QUADLET_DEST}
 
 Methods:
@@ -73,9 +73,9 @@ if ! command -v podman >/dev/null 2>&1; then
 fi
 
 mkdir -p \
-  "${HOME}/Documents/PromptPiperCode/exports" \
-  "${HOME}/Documents/PromptPiperCode/registry" \
-  "${HOME}/Documents/PromptPiperCode/audit" \
+  "${HOME}/Documents/Nautilius/exports" \
+  "${HOME}/Documents/Nautilius/registry" \
+  "${HOME}/Documents/Nautilius/audit" \
   "${ROOT}/data/postgres" \
   "${ROOT}/data/model-cache" \
   "${ROOT}/data/nltk_data" \
@@ -93,10 +93,10 @@ if [[ -x "${ROOT}/apps/api/.venv/bin/python" ]]; then
   "${ROOT}/scripts/setup-lexicon.sh" --skip-index || true
 fi
 
-# Rewrite shipped %h/PromptPiperCode tokens when the clone is elsewhere.
+# Rewrite shipped %h/nautilius-prompt-bench tokens when the clone is elsewhere.
 rewrite_quadlet_paths() {
   local file="$1"
-  if [[ "${ROOT}" == "${HOME}/PromptPiperCode" ]]; then
+  if [[ "${ROOT}" == "${HOME}/nautilius-prompt-bench" ]]; then
     return 0
   fi
   # Prefer absolute paths so units work from any clone location.

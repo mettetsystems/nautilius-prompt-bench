@@ -24,6 +24,7 @@ def _error_response(
     current_state: str | None = None,
     action: str | None = None,
     reason: str | None = None,
+    details: dict[str, str] | None = None,
 ) -> JSONResponse:
     body = ApiErrorResponse(
         code=code,
@@ -31,6 +32,7 @@ def _error_response(
         current_state=current_state,
         action=action,
         reason=reason,
+        details=details or {},
     )
     return JSONResponse(status_code=status_code, content=body.model_dump(exclude_none=True))
 
@@ -45,6 +47,12 @@ def register_exception_handlers(app: FastAPI) -> None:
         if action is None and hasattr(exc, "action"):
             action = getattr(exc, "action", None)
         reason = exc.context.get("reason")
+        reserved = {"current_state", "action", "reason"}
+        details = {
+            key: value
+            for key, value in exc.context.items()
+            if key not in reserved and isinstance(value, str)
+        }
         logger.log(
             logging.WARNING if exc.http_status < 500 else logging.ERROR,
             "app_error",
@@ -57,6 +65,7 @@ def register_exception_handlers(app: FastAPI) -> None:
             current_state=current_state,
             action=action,
             reason=reason,
+            details=details or None,
         )
 
     @app.exception_handler(StateTransitionError)

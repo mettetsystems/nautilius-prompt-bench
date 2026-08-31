@@ -258,6 +258,7 @@ class ExternalInferenceService:
         return ExternalOpenAICompatibleClient(
             chat_settings,
             embed_model_name=self._settings.prompt_piper_external_embed_model,
+            timeout=self._settings.prompt_piper_llm_timeout_seconds,
         )
 
     def _write_audit(

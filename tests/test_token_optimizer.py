@@ -47,10 +47,12 @@ def _sample_body(*, repeat_line: str | None = None, conflict: bool = False) -> s
             [
                 "Be exhaustive and comprehensive in coverage.",
                 "Keep a minimal token footprint with a short answer.",
-                "Cite sources heavily throughout.",
-                "Do not use external references.",
-                "Plain text only.",
-                "Include markdown tables and charts.",
+                "Follow a minimum-necessary change policy.",
+                "The agent may rewrite unrelated subsystems and change anything.",
+                "Pause and persist when blocked.",
+                "Never pause and never escalate; spin indefinitely.",
+                "No force-push.",
+                "git push --force is allowed.",
             ]
         )
     if repeat_line:
@@ -95,7 +97,7 @@ def _enter_similarity_check(
     record.session.requirement_card.unresolved_fields = []
     if body is not None:
         record.drafts[-1].body = body
-    service.finalize(session_id)
+    service.finalize(session_id, acknowledge_first_shot_risk=True)
     return session_id
 
 
@@ -119,9 +121,12 @@ def test_optimizer_removes_repeated_text(service: SessionService) -> None:
 
     result = service.optimize(session_id)
     assert result.optimization_result is not None
-    removed = result.optimization_result.changes.removed
-    assert any("Repeated line" in item for item in removed)
-    assert result.optimization_result.optimized_body.count(repeat) <= 1
+    # Contract rewrite drops draft-only filler; repeated audience lines must not survive.
+    assert result.optimization_result.optimized_body.count(repeat) == 0
+    assert "Long-Horizon Coding Agent Contract" in result.optimization_result.optimized_body
+    assert "Task Identity" in result.optimization_result.optimized_body
+    notes = " ".join(result.optimization_result.changes.clarified)
+    assert "long-horizon" in notes.lower() or "clarity" in notes.lower()
 
 
 def test_optimizer_flags_hard_conflicts(service: SessionService) -> None:
@@ -131,8 +136,9 @@ def test_optimizer_flags_hard_conflicts(service: SessionService) -> None:
     assert result.optimization_result is not None
     descriptions = {item.description for item in result.optimization_result.hard_conflicts}
     assert "be exhaustive vs minimal tokens" in descriptions
-    assert "cite heavily vs no external references" in descriptions
-    assert "plain text only vs include tables and charts" in descriptions
+    assert "minimum-necessary change vs unrestricted edits" in descriptions
+    assert "pause-and-persist vs never stop" in descriptions
+    assert "no force-push vs force-push allowed" in descriptions
 
 
 def test_optimizer_returns_metrics(service: SessionService) -> None:
@@ -143,6 +149,7 @@ def test_optimizer_returns_metrics(service: SessionService) -> None:
     metrics = result.optimization_result.metrics
     assert metrics.original_token_count > 0
     assert metrics.optimized_token_count > 0
+    assert metrics.targets.clarity >= 0.0
     assert metrics.targets.richness >= 0.0
     assert metrics.targets.density >= 0.0
     assert metrics.targets.efficiency >= 0.0

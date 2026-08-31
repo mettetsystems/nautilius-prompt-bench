@@ -1,3 +1,8 @@
+from prompt_piper_api.domain.harness import (
+    API_PACK_FORMATS,
+    HARNESS_SECTION_TITLES,
+    HARNESS_SYSTEM_PROMPT,
+)
 from prompt_piper_api.domain.draft import PromptDraft
 from prompt_piper_api.domain.enums import SessionState
 from prompt_piper_api.domain.registry import (
@@ -9,14 +14,10 @@ from prompt_piper_api.domain.requirement_card import (
     DIMENSION_SECTION_TITLES,
     LEAF_FIELD_NAMES,
     REQUIREMENT_CARD_FIELD_NAMES,
-    ArchitecturalRules,
-    CoreTaskScope,
-    EdgeCasesErrorStrategy,
-    InputsOutputsContracts,
+    AgentContract,
     OptimizationTargets,
     RequirementCard,
-    ResponseFormatting,
-    TechnicalContext,
+    TaskIdentity,
 )
 from prompt_piper_api.domain.session import PromptSession
 from prompt_piper_api.domain.similarity import (
@@ -26,13 +27,13 @@ from prompt_piper_api.domain.similarity import (
 )
 
 __all__ = [
+    "API_PACK_FORMATS",
     "DIMENSION_SECTION_TITLES",
+    "HARNESS_SECTION_TITLES",
+    "HARNESS_SYSTEM_PROMPT",
     "LEAF_FIELD_NAMES",
     "REQUIREMENT_CARD_FIELD_NAMES",
-    "ArchitecturalRules",
-    "CoreTaskScope",
-    "EdgeCasesErrorStrategy",
-    "InputsOutputsContracts",
+    "AgentContract",
     "OptimizationTargets",
     "PromptDraft",
     "PromptRegistryRecord",
@@ -40,9 +41,8 @@ __all__ = [
     "RegistryLineageEntry",
     "RegistryMetadata",
     "RequirementCard",
-    "ResponseFormatting",
     "SessionState",
-    "TechnicalContext",
+    "TaskIdentity",
     "DocumentKind",
     "SimilarityCheckResult",
     "SimilarityMatch",

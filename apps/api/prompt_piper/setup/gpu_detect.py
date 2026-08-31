@@ -10,6 +10,7 @@ class GpuInfo:
     vendor: str
     name: str
     vram_mb: int | None = None
+    free_vram_mb: int | None = None
 
 
 def detect_gpu() -> GpuInfo | None:
@@ -27,7 +28,7 @@ def _detect_nvidia() -> GpuInfo | None:
         result = subprocess.run(
             [
                 "nvidia-smi",
-                "--query-gpu=name,memory.total",
+                "--query-gpu=name,memory.total,memory.free",
                 "--format=csv,noheader,nounits",
             ],
             check=True,
@@ -40,10 +41,11 @@ def _detect_nvidia() -> GpuInfo | None:
     line = result.stdout.strip().splitlines()[0] if result.stdout.strip() else ""
     if not line:
         return None
-    parts = [part.strip() for part in line.split(",", 1)]
+    parts = [part.strip() for part in line.split(",")]
     name = parts[0]
     vram_mb = int(float(parts[1])) if len(parts) > 1 and parts[1] else None
-    return GpuInfo(vendor="nvidia", name=name, vram_mb=vram_mb)
+    free_vram_mb = int(float(parts[2])) if len(parts) > 2 and parts[2] else None
+    return GpuInfo(vendor="nvidia", name=name, vram_mb=vram_mb, free_vram_mb=free_vram_mb)
 
 
 def _detect_amd_rocm() -> GpuInfo | None:

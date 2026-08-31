@@ -106,7 +106,7 @@ def execute_demo_flow(
     for instruction in scenario.edit_instructions:
         service.edit_draft(session_id, instruction)
 
-    finalized = service.finalize(session_id)
+    finalized = service.finalize(session_id, acknowledge_first_shot_risk=True)
     prompt_id = finalized.prompt_id
     if not prompt_id:
         msg = "Demo finalization did not assign a prompt_id."

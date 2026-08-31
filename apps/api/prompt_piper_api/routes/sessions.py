@@ -18,6 +18,7 @@ from prompt_piper_api.schemas.session import (
     CreateSessionFromTemplateRequest,
     CreateSessionRequest,
     EditDraftRequest,
+    FinalizeSessionRequest,
     GenerateArtifactsRequest,
     SessionDetailResponse,
     to_session_detail,
@@ -155,7 +156,9 @@ def edit_session_draft(
     payload: EditDraftRequest,
     service: SessionService = Depends(get_session_service),
 ) -> SessionDetailResponse:
-    result = service.edit_draft(session_id, payload.instruction)
+    result = service.edit_draft(
+        session_id, payload.instruction, body=payload.body
+    )
     return to_session_response(result)
 
 
@@ -189,9 +192,14 @@ def rerun_session_optimization(
 @router.post("/{session_id}/finalize", response_model=SessionDetailResponse)
 def finalize_session(
     session_id: UUID,
+    payload: FinalizeSessionRequest | None = None,
     service: SessionService = Depends(get_session_service),
 ) -> SessionDetailResponse:
-    result = service.finalize(session_id)
+    body = payload or FinalizeSessionRequest()
+    result = service.finalize(
+        session_id,
+        acknowledge_first_shot_risk=body.acknowledge_first_shot_risk,
+    )
     return to_session_response(result)
 
 

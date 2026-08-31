@@ -9,7 +9,7 @@ def test_upsert_env_section_replaces_wizard_block(tmp_path: Path) -> None:
     env_path = tmp_path / ".env"
     env_path.write_text(
         "API_PORT=8000\n"
-        "# --- Local LLM (PromptPiperCode setup wizard) ---\n"
+        "# --- Local LLM (Nautilius Prompting Workbench setup wizard) ---\n"
         "PROMPT_PIPER_LLM_ENABLED=true\n"
         "PROMPT_PIPER_LOCAL_CHAT_MODEL=old\n"
         "# --- End local LLM setup ---\n"
@@ -31,7 +31,7 @@ def test_upsert_env_section_replaces_wizard_block(tmp_path: Path) -> None:
     assert "PROMPT_PIPER_LLM_ENABLED=false" in text
     assert "PROMPT_PIPER_LOCAL_MODEL_PRESET=cpu-only" in text
     assert "PROMPT_PIPER_LOCAL_CHAT_MODEL=old" not in text
-    assert text.count("# --- Local LLM (PromptPiperCode setup wizard) ---") == 1
+    assert text.count("# --- Local LLM (Nautilius Prompting Workbench setup wizard) ---") == 1
 
 
 def test_run_setup_wizard_cpu_only_non_interactive(tmp_path: Path) -> None:

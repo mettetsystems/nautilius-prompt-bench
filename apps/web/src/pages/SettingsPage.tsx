@@ -140,7 +140,7 @@ export function SettingsPage() {
           <span>Enable AI assistance (clarification, precision reranking)</span>
         </label>
         <p className="muted">
-          When disabled, PromptPiperCode uses CPU-only rule-based fallbacks. External send-to-model
+          When disabled, Nautilius Prompting Workbench uses CPU-only rule-based fallbacks. External send-to-model
           endpoints are configured separately below.
         </p>
         <div className="setup-ai-tooling">

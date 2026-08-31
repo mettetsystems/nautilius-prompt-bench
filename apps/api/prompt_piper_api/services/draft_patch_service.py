@@ -10,9 +10,9 @@ from prompt_piper_api.llm.fallback import with_llm_fallback
 from prompt_piper_api.services.draft_generator import DraftGenerator
 from prompt_piper_api.services.requirement_card_extractor import RequirementCardExtractor
 
-_TIGHTEN_CONSTRAINT = "Keep responses concise"
+_TIGHTEN_CONSTRAINT = "Keep language precise without omitting operational rules"
 _EXPAND_CONSTRAINT = "Provide thorough detail where helpful"
-_TOKEN_CONSTRAINT = "Optimize for token efficiency"
+_TOKEN_CONSTRAINT = "Do not compress operational rules to save tokens; prefer clarity"
 
 
 class EditPatchResult(BaseModel):
@@ -75,7 +75,7 @@ class DraftPatchService:
                     role="system",
                     content=(
                         "Classify edit intent using the provided enum values, update the "
-                        "coding requirement card (six nested dimensions), and return JSON with "
+                        "coding requirement card (task_identity plus 16-question agent_contract), and return JSON with "
                         "intent, semantic_diff, and updated_requirement_card. semantic_diff must "
                         "be one short sentence."
                     ),
@@ -101,12 +101,8 @@ class DraftPatchService:
             intent = EditIntent.OTHER
 
         updated = RequirementCard.model_validate(payload.get("updated_requirement_card", card))
-        card.technical_context = updated.technical_context
-        card.core_task_scope = updated.core_task_scope
-        card.inputs_outputs_contracts = updated.inputs_outputs_contracts
-        card.architectural_rules = updated.architectural_rules
-        card.edge_cases_error_strategy = updated.edge_cases_error_strategy
-        card.response_formatting = updated.response_formatting
+        card.task_identity = updated.task_identity
+        card.agent_contract = updated.agent_contract
         card.optimization_targets = updated.optimization_targets
         card.unresolved_fields = updated.unresolved_fields
 
@@ -136,7 +132,7 @@ class DraftPatchService:
             return EditIntent.ADD_CONSTRAINT
         if re.search(
             r"\b(clarify|specify|fill in|define)\b.*\b("
-            r"objective|environment|stack|output|contract|explanation|style)\b",
+            r"objective|environment|stack|done|scope|budget|memory)\b",
             text,
         ):
             return EditIntent.CLARIFY_UNSPECIFIED_FIELD
@@ -168,11 +164,11 @@ class DraftPatchService:
                 ("add requirement:", "include requirement:"),
             )
             value = requirement or cleaned
-            if value not in card.architectural_rules.non_functional:
-                card.architectural_rules.non_functional.append(value)
+            if value not in card.task_identity.additional_constraints:
+                card.task_identity.additional_constraints.append(value)
         elif intent is EditIntent.REMOVE_REQUIREMENT:
             target = self._extract_payload(cleaned, ("remove requirement:", "drop requirement:"))
-            self._remove_matching(card.architectural_rules.non_functional, target or cleaned)
+            self._remove_matching(card.task_identity.additional_constraints, target or cleaned)
         elif intent is EditIntent.CHANGE_TONE:
             tone = self._extract_payload(
                 cleaned,
@@ -187,9 +183,8 @@ class DraftPatchService:
                 ),
             )
             value = tone or cleaned
-            card.response_formatting.explanation_level = value
-            if "style" in cleaned.lower() and "coding" in cleaned.lower():
-                card.architectural_rules.coding_style = value
+            if value not in card.task_identity.additional_constraints:
+                card.task_identity.additional_constraints.append(value)
         elif intent is EditIntent.CHANGE_OUTPUT_SHAPE:
             shape = self._extract_payload(
                 cleaned,
@@ -204,44 +199,44 @@ class DraftPatchService:
                     "change output to",
                 ),
             )
-            card.inputs_outputs_contracts.output_contract = shape or cleaned
+            card.agent_contract.completion_contract = shape or cleaned
         elif intent is EditIntent.ADD_CONSTRAINT:
             constraint = self._extract_payload(
                 cleaned,
                 ("add constraint:", "constraint:", "must not", "avoid", "prefer"),
             )
             value = constraint or cleaned.split(" and change tone")[0].strip()
-            if value not in card.architectural_rules.non_functional:
-                card.architectural_rules.non_functional.append(value)
+            if value not in card.task_identity.additional_constraints:
+                card.task_identity.additional_constraints.append(value)
             if "change tone to" in cleaned.lower() or "explanation" in cleaned.lower():
                 tone = self._extract_payload(
                     cleaned,
                     ("change tone to", "tone to", "explanation level:", "explanation:"),
                 )
-                if tone:
-                    card.response_formatting.explanation_level = tone
+                if tone and tone not in card.task_identity.additional_constraints:
+                    card.task_identity.additional_constraints.append(tone)
         elif intent is EditIntent.REMOVE_CONSTRAINT:
             target = self._extract_payload(cleaned, ("remove constraint:", "drop constraint:"))
-            self._remove_matching(card.architectural_rules.non_functional, target or cleaned)
+            self._remove_matching(card.task_identity.additional_constraints, target or cleaned)
         elif intent is EditIntent.TIGHTEN_LANGUAGE:
-            if _TIGHTEN_CONSTRAINT not in card.architectural_rules.non_functional:
-                card.architectural_rules.non_functional.append(_TIGHTEN_CONSTRAINT)
-            card.response_formatting.verbosity = "very concise"
+            if _TIGHTEN_CONSTRAINT not in card.task_identity.additional_constraints:
+                card.task_identity.additional_constraints.append(_TIGHTEN_CONSTRAINT)
         elif intent is EditIntent.EXPAND_DETAIL:
-            if _EXPAND_CONSTRAINT not in card.architectural_rules.non_functional:
-                card.architectural_rules.non_functional.append(_EXPAND_CONSTRAINT)
-            card.response_formatting.verbosity = "comprehensive and thorough"
+            if _EXPAND_CONSTRAINT not in card.task_identity.additional_constraints:
+                card.task_identity.additional_constraints.append(_EXPAND_CONSTRAINT)
         elif intent is EditIntent.OPTIMIZE_FOR_TOKENS:
-            card.optimization_targets.efficiency = "reduce token usage"
-            if _TOKEN_CONSTRAINT not in card.architectural_rules.non_functional:
-                card.architectural_rules.non_functional.append(_TOKEN_CONSTRAINT)
+            card.optimization_targets.clarity = (
+                "Do not compress operational rules to save tokens; prefer clarity"
+            )
+            if _TOKEN_CONSTRAINT not in card.task_identity.additional_constraints:
+                card.task_identity.additional_constraints.append(_TOKEN_CONSTRAINT)
         elif intent is EditIntent.CLARIFY_UNSPECIFIED_FIELD:
             self._clarify_unspecified_field(card, cleaned)
         else:
-            if card.core_task_scope.objective:
-                card.core_task_scope.objective = f"{card.core_task_scope.objective} ({cleaned})"
+            if card.task_identity.objective:
+                card.task_identity.objective = f"{card.task_identity.objective} ({cleaned})"
             else:
-                card.core_task_scope.objective = cleaned
+                card.task_identity.objective = cleaned
 
     def _clarify_unspecified_field(self, card: RequirementCard, instruction: str) -> None:
         lowered = instruction.lower()
@@ -250,7 +245,7 @@ class DraftPatchService:
             ("clarify objective:", "objective:", "specify objective:", "set objective to"),
         )
         if "objective" in lowered:
-            self._extractor.apply_answer(card, "core_task_scope.objective", value or instruction)
+            self._extractor.apply_answer(card, "task_identity.objective", value or instruction)
             return
         value = self._extract_payload(
             instruction,
@@ -259,29 +254,29 @@ class DraftPatchService:
         if "environment" in lowered or "stack" in lowered:
             self._extractor.apply_answer(
                 card,
-                "technical_context.environment",
+                "task_identity.environment",
                 value or instruction,
             )
             return
         value = self._extract_payload(
             instruction,
-            ("output contract:", "output shape:", "format:", "specify output:", "set output to"),
+            ("done:", "definition of done:", "specify done:", "set done to"),
         )
-        if "output" in lowered or "shape" in lowered or "format" in lowered or "contract" in lowered:
+        if "done" in lowered or "complete" in lowered:
             self._extractor.apply_answer(
                 card,
-                "inputs_outputs_contracts.output_contract",
+                "agent_contract.definition_of_done",
                 value or instruction,
             )
             return
         value = self._extract_payload(
             instruction,
-            ("explanation:", "explanation level:", "tone:", "style:", "set explanation to"),
+            ("completion:", "completion contract:", "evidence:"),
         )
-        if "explanation" in lowered or "tone" in lowered or "style" in lowered:
+        if "completion" in lowered or "evidence" in lowered:
             self._extractor.apply_answer(
                 card,
-                "response_formatting.explanation_level",
+                "agent_contract.completion_contract",
                 value or instruction,
             )
 
@@ -296,25 +291,25 @@ class DraftPatchService:
 
         added_constraints = [
             item
-            for item in after.architectural_rules.non_functional
-            if item not in before.architectural_rules.non_functional
+            for item in after.task_identity.additional_constraints
+            if item not in before.task_identity.additional_constraints
         ]
         removed_constraints = [
             item
-            for item in before.architectural_rules.non_functional
-            if item not in after.architectural_rules.non_functional
+            for item in before.task_identity.additional_constraints
+            if item not in after.task_identity.additional_constraints
         ]
-        before_expl = before.response_formatting.explanation_level
-        after_expl = after.response_formatting.explanation_level
-        before_contract = before.inputs_outputs_contracts.output_contract
-        after_contract = after.inputs_outputs_contracts.output_contract
-        before_env = before.technical_context.environment
-        after_env = after.technical_context.environment
+        before_done = before.agent_contract.definition_of_done
+        after_done = after.agent_contract.definition_of_done
+        before_complete = before.agent_contract.completion_contract
+        after_complete = after.agent_contract.completion_contract
+        before_env = before.task_identity.environment
+        after_env = after.task_identity.environment
 
-        if before_expl != after_expl and after_expl.strip():
-            parts.append(f"set explanation level to {after_expl.strip()}")
-        if before_contract != after_contract and after_contract.strip():
-            parts.append(f"changed output contract to {after_contract.strip()}")
+        if before_done != after_done and after_done.strip():
+            parts.append("updated the definition of done")
+        if before_complete != after_complete and after_complete.strip():
+            parts.append("updated the completion contract")
         if before_env != after_env and after_env.strip():
             parts.append(f"set environment to {after_env.strip()}")
         if added_constraints:
@@ -322,10 +317,15 @@ class DraftPatchService:
         if removed_constraints:
             parts.append(f"removed {removed_constraints[0].lower()}")
         if (
+            before.optimization_targets.clarity != after.optimization_targets.clarity
+            and after.optimization_targets.clarity
+        ):
+            parts.append("prioritized clarity over token reduction")
+        if (
             before.optimization_targets.efficiency != after.optimization_targets.efficiency
             and after.optimization_targets.efficiency
         ):
-            parts.append("optimized for token efficiency")
+            parts.append("updated efficiency guidance")
         if before.objective != after.objective and after.objective.strip():
             parts.append("updated the objective")
 
@@ -336,7 +336,7 @@ class DraftPatchService:
         fallback = {
             EditIntent.TIGHTEN_LANGUAGE: "Tightened language for brevity.",
             EditIntent.EXPAND_DETAIL: "Expanded detail in the draft.",
-            EditIntent.OPTIMIZE_FOR_TOKENS: "Optimized the draft for token efficiency.",
+            EditIntent.OPTIMIZE_FOR_TOKENS: "Reoriented the draft toward clarity rather than token cuts.",
             EditIntent.CLARIFY_UNSPECIFIED_FIELD: "Clarified a previously unspecified field.",
             EditIntent.OTHER: f"Applied edit: {instruction.strip()}.",
         }

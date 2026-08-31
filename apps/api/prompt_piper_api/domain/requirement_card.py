@@ -4,23 +4,29 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from prompt_piper_api.domain.agent_contract import CONTRACT_FIELD_NAMES, CONTRACT_SECTION_TITLES
+
 
 class OptimizationTargets(BaseModel):
-    """Exactly five optional optimization dimensions for prompt tuning."""
+    """Tuning dimensions for the clarity-first optimizer."""
 
     model_config = ConfigDict(extra="forbid")
 
+    clarity: str | None = Field(
+        default=None,
+        description="Make operational rules explicit; never sacrifice clarity for brevity.",
+    )
     richness: str | None = Field(
         default=None,
         description="Increase detail, nuance, and contextual depth.",
     )
     density: str | None = Field(
         default=None,
-        description="Pack more signal into fewer tokens.",
+        description="Pack more signal into fewer tokens (secondary to clarity).",
     )
     efficiency: str | None = Field(
         default=None,
-        description="Reduce latency, cost, or cognitive load.",
+        description="Reduce latency or cognitive load without dropping required rules.",
     )
     denoising: str | None = Field(
         default=None,
@@ -32,189 +38,79 @@ class OptimizationTargets(BaseModel):
     )
 
 
-class TechnicalContext(BaseModel):
-    """Dimension 1: environment, integration points, and dependency policy."""
+class TaskIdentity(BaseModel):
+    """The coding task itself, extracted from the initial request (not a control question)."""
 
     model_config = ConfigDict(extra="forbid")
 
-    environment: str = Field(
-        default="",
-        description="Language version, framework, and key dependencies.",
-    )
-    integration_points: list[str] = Field(
-        default_factory=list,
-        description="Functions, types, schemas, or names the output must match.",
-    )
-    dependency_policy: str = Field(
-        default="",
-        description="Stdlib-only, allow listed packages, or open third-party use.",
-    )
-    forbidden_libraries: list[str] = Field(
-        default_factory=list,
-        description="Libraries or packages that must not be used.",
-    )
-
-
-class CoreTaskScope(BaseModel):
-    """Dimension 2: single job and explicit non-goals."""
-
-    model_config = ConfigDict(extra="forbid")
-
+    objective: str = Field(default="", description="Primary long-horizon coding goal.")
     task_type: str = Field(
         default="",
         description="Feature, refactor, debug, tests, or other coding job type.",
     )
-    objective: str = Field(default="", description="Primary coding goal of the prompt.")
-    out_of_scope: list[str] = Field(
+    environment: str = Field(
+        default="",
+        description="Language, framework, and key dependencies when known.",
+    )
+    additional_constraints: list[str] = Field(
         default_factory=list,
-        description="Problems the model must not try to solve or include.",
+        description="Free-form constraints added during edits.",
     )
 
 
-class InputsOutputsContracts(BaseModel):
-    """Dimension 3: inputs, return shape, and examples."""
+class AgentContract(BaseModel):
+    """Sixteen operational-control policies for a long-horizon coding agent."""
 
     model_config = ConfigDict(extra="forbid")
 
-    inputs: str = Field(
-        default="",
-        description="Sample data structures, parameters, or request payloads.",
-    )
-    output_contract: str = Field(
-        default="",
-        description="Exact return structure (JSON schema, SQL, interface, etc.).",
-    )
-    examples: list[str] = Field(
-        default_factory=list,
-        description="Example inputs/outputs or formatting exemplars.",
-    )
-
-
-class ArchitecturalRules(BaseModel):
-    """Dimension 4: design patterns, style, and non-functional requirements."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    design_patterns: list[str] = Field(
-        default_factory=list,
-        description="Patterns such as repository, functional, OOP, async/await.",
-    )
-    coding_style: str = Field(
-        default="",
-        description="Coding style or design approach the model should follow.",
-    )
-    non_functional: list[str] = Field(
-        default_factory=list,
-        description="Memory, complexity, thread-safety, security, and similar NFRs.",
-    )
-
-
-class EdgeCasesErrorStrategy(BaseModel):
-    """Dimension 5: failure handling and bad-input behavior."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    failure_handling: str = Field(
-        default="",
-        description="How failures should be handled (exceptions, null, retry, log).",
-    )
-    bad_inputs: list[str] = Field(
-        default_factory=list,
-        description="Bad inputs the code will face (null, empty, rate limits, etc.).",
-    )
-    edge_cases: list[str] = Field(
-        default_factory=list,
-        description="Edge cases or exceptions the prompt must handle.",
-    )
-
-
-class ResponseFormatting(BaseModel):
-    """Dimension 6: explanation level and response packaging."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    explanation_level: str = Field(
-        default="",
-        description="Code-only, brief rationale, or step-by-step before code.",
-    )
-    verbosity: str = Field(
-        default="",
-        description="Desired length or detail level of the response.",
-    )
-    extra_artifacts: list[str] = Field(
-        default_factory=list,
-        description="Appended artifacts such as tests, comments, or migration notes.",
-    )
+    definition_of_done: str = Field(default="", description="Evidence-based completion states.")
+    change_scope: str = Field(default="", description="Minimum-necessary change policy.")
+    architecture_policy: str = Field(default="", description="Reuse, priorities, and coupling.")
+    discovery_policy: str = Field(default="", description="Inspect-before-modify rules.")
+    execution_strategy: str = Field(default="", description="Incremental lifecycle.")
+    validation_strategy: str = Field(default="", description="Continuous verification pyramid.")
+    failure_recovery: str = Field(default="", description="Diagnose-then-fix protocol.")
+    autonomy_policy: str = Field(default="", description="Risk-weighted autonomy.")
+    persistent_memory: str = Field(default="", description=".agent/ working memory.")
+    completion_contract: str = Field(default="", description="Evidence required to finish.")
+    resource_budget: str = Field(default="", description="API/loop/time pause limits.")
+    tool_safety: str = Field(default="", description="Shell, network, and secret restrictions.")
+    context_compaction: str = Field(default="", description="Context-window survival rules.")
+    rollback_protocol: str = Field(default="", description="Checkpoint and backtracking.")
+    escalation_rules: str = Field(default="", description="Human-in-the-loop stop conditions.")
+    dependency_security: str = Field(default="", description="License, SAST, and audit rules.")
 
 
 # Leaf paths used by clarification, unresolved tracking, and edit patches.
 LEAF_FIELD_NAMES: frozenset[str] = frozenset(
     {
-        "technical_context.environment",
-        "technical_context.integration_points",
-        "technical_context.dependency_policy",
-        "technical_context.forbidden_libraries",
-        "core_task_scope.task_type",
-        "core_task_scope.objective",
-        "core_task_scope.out_of_scope",
-        "inputs_outputs_contracts.inputs",
-        "inputs_outputs_contracts.output_contract",
-        "inputs_outputs_contracts.examples",
-        "architectural_rules.design_patterns",
-        "architectural_rules.coding_style",
-        "architectural_rules.non_functional",
-        "edge_cases_error_strategy.failure_handling",
-        "edge_cases_error_strategy.bad_inputs",
-        "edge_cases_error_strategy.edge_cases",
-        "response_formatting.explanation_level",
-        "response_formatting.verbosity",
-        "response_formatting.extra_artifacts",
+        "task_identity.objective",
+        "task_identity.task_type",
+        "task_identity.environment",
+        "task_identity.additional_constraints",
+        *CONTRACT_FIELD_NAMES,
         "optimization_targets",
     }
 )
 
 LIST_LEAF_FIELDS: frozenset[str] = frozenset(
     {
-        "technical_context.integration_points",
-        "technical_context.forbidden_libraries",
-        "core_task_scope.out_of_scope",
-        "inputs_outputs_contracts.examples",
-        "architectural_rules.design_patterns",
-        "architectural_rules.non_functional",
-        "edge_cases_error_strategy.bad_inputs",
-        "edge_cases_error_strategy.edge_cases",
-        "response_formatting.extra_artifacts",
+        "task_identity.additional_constraints",
     }
 )
 
-# Back-compat alias for imports that still use the old constant name.
 REQUIREMENT_CARD_FIELD_NAMES = LEAF_FIELD_NAMES
 
-DIMENSION_SECTION_TITLES: tuple[str, ...] = (
-    "Technical Context",
-    "Core Task and Scope",
-    "Inputs, Outputs, and Contracts",
-    "Architectural Rules and Constraints",
-    "Edge Cases and Error Strategy",
-    "Response Formatting",
-)
+DIMENSION_SECTION_TITLES: tuple[str, ...] = ("Task Identity", *CONTRACT_SECTION_TITLES)
 
 
 class RequirementCard(BaseModel):
-    """Coding-prompt intake card organized around six fundamental dimensions."""
+    """Long-horizon coding-agent intake card: task identity plus a 16-question contract."""
 
     model_config = ConfigDict(extra="forbid")
 
-    technical_context: TechnicalContext = Field(default_factory=TechnicalContext)
-    core_task_scope: CoreTaskScope = Field(default_factory=CoreTaskScope)
-    inputs_outputs_contracts: InputsOutputsContracts = Field(
-        default_factory=InputsOutputsContracts
-    )
-    architectural_rules: ArchitecturalRules = Field(default_factory=ArchitecturalRules)
-    edge_cases_error_strategy: EdgeCasesErrorStrategy = Field(
-        default_factory=EdgeCasesErrorStrategy
-    )
-    response_formatting: ResponseFormatting = Field(default_factory=ResponseFormatting)
+    task_identity: TaskIdentity = Field(default_factory=TaskIdentity)
+    agent_contract: AgentContract = Field(default_factory=AgentContract)
     optimization_targets: OptimizationTargets = Field(default_factory=OptimizationTargets)
     unresolved_fields: list[str] = Field(
         default_factory=list,
@@ -224,11 +120,11 @@ class RequirementCard(BaseModel):
     @property
     def objective(self) -> str:
         """Convenience accessor used by titles, precision, and metrics."""
-        return self.core_task_scope.objective
+        return self.task_identity.objective
 
     @objective.setter
     def objective(self, value: str) -> None:
-        self.core_task_scope.objective = value
+        self.task_identity.objective = value
 
     def mark_unresolved(self, *field_names: str) -> None:
         """Replace unresolved_fields with validated leaf field names."""

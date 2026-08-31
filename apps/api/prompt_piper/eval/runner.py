@@ -35,7 +35,7 @@ def run_eval(*, cases_path: Path | None = None) -> int:
         regression=regression,
     )
 
-    print("PromptPiperCode pre-inference eval")
+    print("Nautilius Prompting Workbench pre-inference eval")
     print(f"Cases run: {regression.cases_run}")
     print(f"Optimized losses: {regression.optimized_losses}")
     print(f"Regression loss rate: {regression.loss_rate:.1%}")

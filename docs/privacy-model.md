@@ -1,13 +1,13 @@
 # Privacy model
 
-PromptPiperCode is designed so prompt content stays on your machine unless you take an explicit, gated action to send an approved optimized prompt to an external model.
+Nautilius Prompting Workbench is designed so prompt content stays on your machine unless you take an explicit, gated action to send an approved optimized prompt to an external model.
 
 ## What stays local
 
 | Data | Location | Sent externally? |
 |------|----------|-------------------|
 | Session state and draft versions | API process memory (v1) | Never |
-| RequirementCard (six coding dimensions) | Session + registry JSON / coding_prompt_spec | Never (unless you copy files) |
+| RequirementCard (task identity + 16-question agent contract) | Session + registry JSON / coding_prompt_spec | Never (unless you copy files) |
 | Canonical prompt text | `data/registry/{prompt_id}/` | Never by default |
 | Optimized prompt text | `data/artifacts/{prompt_id}/` | Only via explicit send-to-inference |
 | Similarity embeddings | JSON index or local DB | Never |
@@ -16,7 +16,7 @@ PromptPiperCode is designed so prompt content stays on your machine unless you t
 | Audit log | `data/audit/external_inference.jsonl` | Never |
 | External inference responses | `data/artifacts/{prompt_id}/inference_response.txt` | Written locally after optional call |
 
-Clarification, draft generation, token optimization, quality gating, similarity search, and artifact export run **entirely on the local API** with deterministic or locally hosted models.
+Clarification, draft generation, clarity-first optimization, quality gating, similarity search, and artifact export run **entirely on the local API** with deterministic or locally hosted models.
 
 The web UI communicates only with `VITE_API_BASE_URL` (default `http://127.0.0.1:8000`).
 
@@ -139,7 +139,7 @@ Failed gate → HTTP 409; no artifacts, no export, no inference.
 
 - Store `PROMPT_PIPER_EXTERNAL_API_KEY` and local API keys in `.env` (gitignored).
 - Never commit secrets into `data/registry` prompt files.
-- Pushing `data/registry` to a remote Git remote is a **user decision**; PromptPiperCode does not push automatically.
+- Pushing `data/registry` to a remote Git remote is a **user decision**; the workbench does not push automatically.
 
 ## Network assumptions
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from prompt_piper_api.domain.requirement_card import OptimizationTargets, RequirementCard
+from tests.card_fixtures import sample_card
+from prompt_piper_api.services.harness_prompt_builder import build_harness_body
 from prompt_piper_api.services.embedding_service import EmbeddingService
 from prompt_piper_api.services.optimization.constraint_graph_pass import ConstraintGraphPass
 from prompt_piper_api.services.optimization.engine import TokenOptimizationEngine
@@ -43,26 +45,18 @@ def test_normalize_phrase_for_capture_ignores_vague_words() -> None:
 
 def test_binding_capture_ignores_optional_card_fields() -> None:
     card = RequirementCard(
-        core_task_scope={
+        task_identity={
             "objective": "Add FastAPI endpoint for weekly engineering status summaries.",
             "task_type": "new feature logic",
+            "environment": "Python with FastAPI",
         },
-        technical_context={"environment": "Python with FastAPI"},
-        edge_cases_error_strategy={"edge_cases": ["when sources conflict"]},
-        inputs_outputs_contracts={"examples": ["one-page JSON example"]},
         optimization_targets=OptimizationTargets(richness="include enough detail"),
     )
-    body = "\n".join(
-        [
-            "Core Task and Scope",
-            "-------------------",
-            "Task type: new feature logic",
-            "Objective: Add FastAPI endpoint for weekly engineering status summaries.",
-            "",
-            "Technical Context",
-            "-----------------",
-            "Environment: Python with FastAPI",
-        ]
+    body = (
+        "Task Identity\n-------------\n"
+        "Task type: new feature logic\n"
+        "Objective: Add FastAPI endpoint for weekly engineering status summaries.\n"
+        "Environment: Python with FastAPI\n"
     )
     graph = ConstraintGraphPass().run(body, card)
     evaluator = RequirementCaptureEvaluator(EmbeddingService(prefer_fallback=True))
@@ -75,12 +69,14 @@ def test_binding_capture_ignores_optional_card_fields() -> None:
 def test_verbatim_requirement_still_captures() -> None:
     evaluator = RequirementCaptureEvaluator(EmbeddingService(prefer_fallback=True))
     card = RequirementCard(
-        core_task_scope={"objective": "Summarize weekly status"},
-        technical_context={"environment": "Python with FastAPI"},
+        task_identity={
+            "objective": "Summarize weekly status",
+            "environment": "Python with FastAPI",
+        },
     )
     body = (
-        "Core Task and Scope\n-------------------\nObjective: Summarize weekly status\n\n"
-        "Technical Context\n-----------------\nEnvironment: Python with FastAPI"
+        "Task Identity\n-------------\nObjective: Summarize weekly status\n"
+        "Environment: Python with FastAPI"
     )
 
     assert evaluator.score(body, card) == 1.0
@@ -89,16 +85,15 @@ def test_verbatim_requirement_still_captures() -> None:
 def test_rephrased_constraint_can_capture_lexically() -> None:
     evaluator = RequirementCaptureEvaluator(EmbeddingService(prefer_fallback=True))
     card = RequirementCard(
-        architectural_rules={"non_functional": ["Keep the response within 300 words"]}
+        task_identity={"additional_constraints": ["Keep the response within 300 words"]}
     )
     body = (
-        "Architectural Rules and Constraints\n"
-        "-----------------------------------\n"
-        "Keep the response within 300 words."
+        "Task Identity\n-------------\n"
+        "Additional constraint: Keep the response within 300 words."
     )
 
     assert evaluator.captures_phrase(
-        card.architectural_rules.non_functional[0],
+        card.task_identity.additional_constraints[0],
         body,
         body_chunks(body),
     )
@@ -130,40 +125,41 @@ def test_unrelated_phrase_does_not_capture() -> None:
 
 
 def test_optimized_prompt_meets_capture_gate_for_typical_session() -> None:
-    card = RequirementCard(
-        core_task_scope={
-            "objective": "Add FastAPI endpoint for weekly engineering status summaries.",
-            "task_type": "new feature logic",
-        },
-        technical_context={"environment": "Python with FastAPI and Pydantic"},
-        inputs_outputs_contracts={
-            "output_contract": "JSON with blockers, owners, and next steps",
-        },
-        architectural_rules={"non_functional": ["Keep the response within 300 words"]},
+    card = sample_card(
+        objective="Add FastAPI endpoint for weekly engineering status summaries.",
+        environment="Python with FastAPI and Pydantic",
+        extra_constraints=["Keep the response within 300 words"],
     )
-    body = "\n".join(
-        [
-            "Technical Context",
-            "-----------------",
-            "Environment: Python with FastAPI and Pydantic",
-            "",
-            "Core Task and Scope",
-            "-------------------",
-            "Task type: new feature logic",
-            "Objective: Add FastAPI endpoint for weekly engineering status summaries.",
-            "",
-            "Inputs, Outputs, and Contracts",
-            "------------------------------",
-            "Output contract: JSON with blockers, owners, and next steps.",
-            "",
-            "Architectural Rules and Constraints",
-            "-----------------------------------",
-            "Keep the response within 300 words.",
-        ]
-    )
+    body = build_harness_body(card)
     optimization = TokenOptimizationEngine().optimize(body, card)
     metrics = PreInferenceMetricsService(
         capture_evaluator=RequirementCaptureEvaluator(EmbeddingService(prefer_fallback=True)),
     ).compute(optimization.optimized_body, card, optimization=optimization)
 
     assert metrics.requirement_capture_score >= 0.90
+
+
+def test_extract_section_keeps_markdown_table_in_task_identity() -> None:
+    from prompt_piper_api.services.optimization.constraint_graph_pass import extract_section
+
+    body = (
+        "Task Identity\n"
+        "-------------\n"
+        "Role: long-horizon coding agent\n"
+        "Objective: Build FlowBPM\n"
+        "Additional constraint: Table:\n"
+        "| Mode | Primary |\n"
+        "| --- | --- |\n"
+        "| Sleep | #090D18 |\n"
+        "| Flow | #7865E8 |\n"
+        "\n"
+        "Definition of Done\n"
+        "------------------\n"
+        "COMPLETE only with passing tests\n"
+    )
+    lines = extract_section(body, "Task Identity")
+    assert "Role: long-horizon coding agent" in lines
+    assert "Objective: Build FlowBPM" in lines
+    assert any("| Sleep | #090D18 |" in line for line in lines)
+    assert "COMPLETE only with passing tests" not in lines
+

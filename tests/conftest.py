@@ -12,7 +12,7 @@ def client() -> TestClient:
 
 @pytest.fixture(autouse=True)
 def isolate_documents_export_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep tests off ~/Documents/PromptPiperCode unless a test overrides paths explicitly."""
+    """Keep tests off ~/Documents/Nautilius unless a test overrides paths explicitly."""
     export_root = tmp_path / "prompt-piper-export"
     monkeypatch.setenv("PROMPT_PIPER_EXPORT_ROOT", str(export_root))
     monkeypatch.setenv("PROMPT_PIPER_HOST_EXPORT_ROOT", str(export_root))

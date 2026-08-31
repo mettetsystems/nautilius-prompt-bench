@@ -46,12 +46,12 @@ class DeconflictionPass:
             r"\bkeep it brief\b", body, re.I
         ):
             updated = re.sub(
-                r"\bprioritize clarity and completeness\b",
-                "Prioritize clarity within the stated token budget",
+                r"\bkeep it brief\b",
+                "keep operational rules explicit",
                 updated,
                 flags=re.I,
             )
-            resolved.append("Aligned clarity goal with brevity constraint.")
+            resolved.append("Kept clarity over brevity when both were requested.")
 
         return updated, resolved
 

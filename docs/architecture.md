@@ -1,6 +1,6 @@
 # Architecture
 
-PromptPiperCode is a **local-first coding prompt workbench**. It helps you clarify coding requirements across six dimensions, draft prompts, review similarity to prior work, optimize token cost, export structured specs plus rendered prompts, and store them in a Git-backed registry—all on your machine.
+Nautilius Prompting Workbench is a **local-first long-horizon coding-agent prompting workbench**. It helps you turn a coding task into a 16-question operational contract, draft the prompt, review similarity to prior work, optimize for **clarity** (not token cost), export structured specs plus rendered prompts, and store them in a local file registry—all on your machine.
 
 It is **not** an autonomous agent platform. There is no background task runner, no tool-use loop, and no implicit model calls. Every stage is user-initiated and state-gated.
 
@@ -10,7 +10,7 @@ All durable data lives under the repo (or configured paths):
 
 | Path | Contents |
 |------|----------|
-| `data/registry/` | Git-backed finalized prompts (`metadata.yaml`, canonical bodies, requirement cards) |
+| `data/registry/` | Local finalized prompts (`metadata.yaml`, canonical bodies, requirement cards) |
 | `data/artifacts/` | Generated exports (TXT, Markdown, HTML, PDF, metrics, manifest) |
 | `data/audit/` | Append-only external-inference audit log |
 | `data/similarity_index.json` | Optional JSON embedding index (SQLite/Postgres alternative) |
@@ -22,7 +22,7 @@ External cloud inference is **opt-in**, **explicitly approved per request**, and
 
 ## Workbench, not agent platform
 
-| PromptPiperCode | Autonomous agent platform |
+| Nautilius Prompting Workbench | Autonomous agent platform |
 |--------------|---------------------------|
 | User drives each workflow step | System plans and executes multi-step tasks |
 | Fixed session state machine | Open-ended tool loop |
@@ -31,7 +31,7 @@ External cloud inference is **opt-in**, **explicitly approved per request**, and
 | Registry + RAG index for retrieval | Ephemeral chat sessions |
 | One optional `send-to-inference` after approval | Continuous model access |
 
-The product optimizes for **auditable prompt design**: structured intake, versioned drafts, frozen canonical text, deterministic token optimization, and file-based exports suitable for review and Git diff.
+The product optimizes for **auditable long-horizon prompt design**: structured intake, versioned drafts, frozen canonical text, clarity-first optimization, and file-based exports suitable for review and Git diff.
 
 ## Runtime components
 
@@ -63,7 +63,7 @@ States are defined in `SessionState` (`apps/api/prompt_piper_api/domain/enums.py
 | `edit` | Initial draft exists; user may apply edit instructions |
 | `finalized` | Reserved enum value; runtime transitions skip directly to similarity |
 | `similarity_check` | Canonical draft frozen; registry written; similarity indexed |
-| `optimization` | Token optimizer has run; awaiting user approval |
+| `optimization` | Clarity optimizer has run; awaiting user approval |
 | `approval` | Optimization passed quality gate; ready for artifact export |
 | `artifact_generation` | Reserved; generation transitions directly to `exported` |
 | `exported` | Artifacts written under `data/artifacts/{prompt_id}/` |
@@ -82,30 +82,26 @@ After finalization the canonical draft is **frozen** (`is_frozen=True`). Edits a
 
 `prompt_id` is assigned at finalize: `{slug-from-title}-{first-8-chars-of-session-uuid}` via `build_prompt_id()`.
 
-## RequirementCard (six coding dimensions)
+## RequirementCard (task identity + 16-question agent contract)
 
-The RequirementCard (`apps/api/prompt_piper_api/domain/requirement_card.py`) is the structured source of truth for a coding prompt. It is populated incrementally:
+The RequirementCard (`apps/api/prompt_piper_api/domain/requirement_card.py`) is the structured source of truth for a long-horizon coding-agent prompt. It is populated incrementally:
 
-1. **Initial extraction** — `RequirementCardExtractor` parses the user's opening request into nested dimension models.
-2. **Clarification answers** — ranked questions update dotted leaf paths until the draft gate is satisfied.
-3. **Edit instructions** — `DraftPatchService` classifies intent (add constraint, change output contract, etc.) and mutates the card before regenerating the draft body.
+1. **Initial extraction** — `RequirementCardExtractor` parses the user's opening request into `task_identity` (objective, task type, environment).
+2. **Clarification answers** — 16 operational-control questions update dotted leaf paths. Selecting a recommended default expands to the full deterministic policy text.
+3. **Edit instructions** — `DraftPatchService` classifies intent and mutates the card before regenerating the draft body.
 
-Dimensions:
+| Group | Nested model | Key leaves |
+|-------|--------------|------------|
+| Task identity | `task_identity` | `objective`, `task_type`, `environment`, `additional_constraints` |
+| Agent contract | `agent_contract` | `definition_of_done`, `change_scope`, `architecture_policy`, `discovery_policy`, `execution_strategy`, `validation_strategy`, `failure_recovery`, `autonomy_policy`, `persistent_memory`, `completion_contract`, `resource_budget`, `tool_safety`, `context_compaction`, `rollback_protocol`, `escalation_rules`, `dependency_security` |
 
-| Dimension | Nested model | Key leaves |
-|-----------|--------------|------------|
-| 1. Technical Context | `technical_context` | `environment`, `integration_points`, `dependency_policy`, `forbidden_libraries` |
-| 2. Core Task & Scope | `core_task_scope` | `task_type`, `objective`, `out_of_scope` |
-| 3. Inputs, Outputs & Contracts | `inputs_outputs_contracts` | `inputs`, `output_contract`, `examples` |
-| 4. Architectural Rules | `architectural_rules` | `design_patterns`, `coding_style`, `non_functional` |
-| 5. Edge Cases & Errors | `edge_cases_error_strategy` | `failure_handling`, `bad_inputs`, `edge_cases` |
-| 6. Response Formatting | `response_formatting` | `explanation_level`, `verbosity`, `extra_artifacts` |
-
-Also on the card: `optimization_targets` (five optional tuning dimensions) and `unresolved_fields` (dotted leaf paths still missing or marked `unspecified`).
+Also on the card: `optimization_targets` (clarity-first, plus richness/density/efficiency/denoising/deconfliction) and `unresolved_fields` (dotted leaf paths still missing or marked `unspecified`).
 
 `unresolved_fields` drives clarification ranking (`ClarificationQuestionRanker`) and the **unspecified field honesty** metric. Drafts must mark missing values as the literal word `unspecified`—never invent details.
 
-Draft bodies use six matching plain-text sections with underline headers.
+Draft and optimized bodies use the same plain-text contract sections with underline headers. The optimizer expands for **clarity**; it does not compress for token cost.
+
+Exports include `harness_prompt.md` plus a hybrid API pack (OpenAI, Anthropic, Gemini, Cursor, Copilot, Continue).
 
 ## Registry
 
@@ -121,9 +117,9 @@ data/registry/{prompt_id}/
   coding_prompt_spec.yaml
   lineage.json
 ```
-On finalize, files are written and a Git commit is attempted (`Finalize prompt {prompt_id} version {version}`). If Git is unavailable, files are still written; a warning is returned.
+On finalize, prompt files are written under `REGISTRY_PATH` on this machine. There is no Git commit.
 
-After artifact generation, `update_artifact_paths()` merges export paths and evaluation scores back into `metadata.yaml` and commits again.
+After artifact generation, `update_artifact_paths()` merges export paths and evaluation scores back into `metadata.yaml`.
 
 See [registry-format.md](registry-format.md) for schema details.
 
@@ -143,21 +139,21 @@ Index storage (`similarity_factory.py`):
 
 Embeddings use `EmbeddingService` with `PROMPT_PIPER_EMBEDDING_MODEL` (default `BAAI/bge-small-en-v1.5`). Set `PROMPT_PIPER_EMBEDDING_FALLBACK=true` for deterministic hash-based vectors in tests/offline mode.
 
-`lessons_learned.md` content is derived from non-functional rules, out-of-scope items, edge cases, and forbidden libraries (`build_lessons_learned()`).
+`lessons_learned.md` content is derived from additional constraints, out-of-scope cues in change scope, failure recovery, and dependency security (`build_lessons_learned()`).
 
-## Token optimizer
+## Clarity-first optimizer
 
-`TokenOptimizationEngine` (`apps/api/prompt_piper_api/services/optimization/engine.py`) runs five deterministic passes on the **frozen canonical body**:
+`TokenOptimizationEngine` (`apps/api/prompt_piper_api/services/optimization/engine.py`) runs five deterministic passes on the **frozen canonical body**. Token reduction is not a goal; long-horizon contracts are expected to grow.
 
 | Pass | Module | Purpose |
 |------|--------|---------|
 | 1 | `ConstraintGraphPass` | Parse body + RequirementCard into constraint slots |
-| 2 | `RewriteCompressionPass` | Rebuild canonical section structure; front-load salient instructions |
+| 2 | `RewriteCompressionPass` | Rebuild the 17-section contract; expand operational rules for clarity |
 | 3 | `DenoisingPass` | Remove repetition, filler, hedging |
 | 4 | `DeconflictionPass` | Detect/resolve contradictions; flag hard conflicts |
 | 5 | `ApprovalExportPass` | Attach metrics, change log, export readiness |
 
-Output is an `OptimizationResult` with `original_body`, `optimized_body`, `hard_conflicts`, and five target scores (richness, density, efficiency, denoising, deconfliction).
+Output is an `OptimizationResult` with `original_body`, `optimized_body`, `hard_conflicts`, and target scores (clarity, richness, density, efficiency, denoising, deconfliction). Efficiency rewards preservation, not cuts.
 
 User approval (`approve_optimization`) is blocked when:
 
@@ -178,7 +174,7 @@ Two layers protect data leaving the machine:
 |--------|-------------|
 | `requirement_capture_score` | ≥ 0.90 |
 | `unspecified_field_honesty` | = 1.00 |
-| `format_adherence` | = 1.00 (six coding-dimension plain-text sections, no markdown headings in body) |
+| `format_adherence` | = 1.00 (17-section long-horizon contract; no markdown headings in body) |
 | `hard_conflict_count` | = 0 |
 
 Metrics are computed by `PreInferenceMetricsService` and stored in `metrics.json` / `metadata.yaml` evaluation_scores after export.

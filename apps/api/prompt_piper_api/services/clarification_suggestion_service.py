@@ -44,10 +44,12 @@ class ClarificationSuggestionService:
         ]
 
         def unavailable(message: str) -> ClarificationSuggestions:
+            # Keep concrete template answers available offline so CPU-only flows
+            # are not left with an empty suggestion panel.
             return ClarificationSuggestions(
                 field_name=field_name,
                 suggested_question=base_prompt,
-                suggested_answers=[],
+                suggested_answers=fallback_options[:4],
                 model_available=False,
                 message=message,
             )

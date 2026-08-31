@@ -1,7 +1,7 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
 import { APP_NAME } from "@prompt-piper/shared";
 import { useQuery } from "@tanstack/react-query";
-import logoUrl from "@assets/logo/logo.svg";
+import logoUrl from "@assets/logo/logo.png";
 import { fetchHealth, fetchLlmHealth } from "../api/sessions";
 
 export function AppLayout() {
@@ -23,9 +23,9 @@ export function AppLayout() {
       <header className="layout-header">
         <div className="layout-header-start">
           <div className="layout-brand">
-            <p className="eyebrow">Local coding prompt workbench</p>
+            <p className="eyebrow">Long Horizon Code Prompt Workbench</p>
             <Link to="/" className="brand-link">
-              <img src={logoUrl} alt="" className="brand-logo" width={360} height={72} />
+              <img src={logoUrl} alt="" className="brand-logo" width={128} height={128} />
               <span className="sr-only">{APP_NAME}</span>
             </Link>
           </div>

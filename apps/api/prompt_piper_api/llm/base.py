@@ -46,8 +46,13 @@ class LLMClient(Protocol):
         messages: list[ChatMessage],
         *,
         response_format: dict[str, Any] | None = None,
+        max_tokens: int | None = None,
     ) -> ChatResponse:
-        """Run a chat completion."""
+        """Run a chat completion.
+
+        ``max_tokens`` overrides the client default when set (used for short
+        Ask The Locals answers).
+        """
 
     def embed(self, texts: list[str]) -> EmbedResponse:
         """Generate embeddings for one or more texts."""

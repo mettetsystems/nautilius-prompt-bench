@@ -59,4 +59,4 @@ def test_api_starts_and_serves_health(live_server: str):
 def test_uvicorn_importable():
     from prompt_piper_api.main import app
 
-    assert app.title == "PromptPiperCode API"
+    assert app.title == "Nautilius Prompting Workbench API"

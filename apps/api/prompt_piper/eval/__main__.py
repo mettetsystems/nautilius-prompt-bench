@@ -7,7 +7,7 @@ from prompt_piper.eval.runner import run_eval
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run PromptPiperCode local eval suite")
+    parser = argparse.ArgumentParser(description="Run Nautilius Prompting Workbench local eval suite")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     run_parser = subparsers.add_parser("run", help="Run regression cases and quality gate")

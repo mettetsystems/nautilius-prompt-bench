@@ -148,7 +148,8 @@ export function useAskTheLocals(sessionId: string) {
 export function useEditDraft(sessionId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (instruction: string) => editDraft(sessionId, instruction),
+    mutationFn: (payload: { instruction: string } | { body: string }) =>
+      editDraft(sessionId, payload),
     onSuccess: (data) => {
       trackSession(queryClient, data);
       queryClient.setQueryData(queryKeys.session(sessionId), data);
@@ -159,7 +160,8 @@ export function useEditDraft(sessionId: string) {
 export function useFinalizeSession(sessionId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => finalizeSession(sessionId),
+    mutationFn: (options?: { acknowledgeFirstShotRisk?: boolean }) =>
+      finalizeSession(sessionId, options),
     onSuccess: (data) => {
       trackSession(queryClient, data);
       queryClient.setQueryData(queryKeys.session(sessionId), data);

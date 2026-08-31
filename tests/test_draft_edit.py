@@ -43,7 +43,7 @@ def test_adding_requirement_updates_draft(service: SessionService) -> None:
     assert edited.revised_draft.body != before.body
     assert (
         "prefer open-source tooling"
-        in edited.updated_requirement_card.architectural_rules.non_functional[-1]
+        in edited.updated_requirement_card.task_identity.additional_constraints[-1]
     )
 
 
@@ -54,7 +54,7 @@ def test_tone_change_updates_draft(service: SessionService) -> None:
     edited = service.edit_draft(session_id, "Change tone to analytical")
 
     assert edited.edit_intent is EditIntent.CHANGE_TONE
-    assert edited.updated_requirement_card.response_formatting.explanation_level == "analytical"
+    assert "analytical" in edited.updated_requirement_card.task_identity.additional_constraints[-1]
     assert "analytical" in edited.revised_draft.body.lower()
     assert edited.revised_draft.body != before_body
 
@@ -66,7 +66,7 @@ def test_output_shape_change_updates_draft(service: SessionService) -> None:
 
     assert edited.edit_intent is EditIntent.CHANGE_OUTPUT_SHAPE
     assert (
-        edited.updated_requirement_card.inputs_outputs_contracts.output_contract
+        edited.updated_requirement_card.agent_contract.completion_contract
         == "markdown table"
     )
     assert "markdown table" in edited.revised_draft.body
@@ -114,6 +114,45 @@ def test_new_draft_version_increments(service: SessionService) -> None:
     assert second_edit.revised_draft.version == 3
 
 
+def test_direct_body_replace_preserves_typed_text(service: SessionService) -> None:
+    session_id = _enter_edit_state(service)
+    before = service.get_session(session_id).current_draft
+    assert before is not None
+    extra = "Additional operator note: keep the /users handler idempotent."
+    updated = f"{before.body.rstrip()}\n\n{extra}"
+
+    edited = service.edit_draft(session_id, body=updated)
+
+    assert edited.edit_intent is EditIntent.DIRECT_EDIT
+    assert edited.revised_draft is not None
+    assert extra in edited.revised_draft.body
+    assert edited.revised_draft.version == before.version + 1
+    assert edited.revised_draft.change_summary == "Direct draft edit."
+
+
+def test_direct_body_replace_via_api(client: TestClient) -> None:
+    create = client.post("/sessions", json={"initial_request": "Write a release note prompt"})
+    session_id = create.json()["session"]["id"]
+    started = drive_client_session_to_edit(
+        client,
+        session_id,
+        answers=["Engineering team", "Bulleted summary"],
+    )
+    original = started["current_draft"]["body"]
+    extra = "Paste-in constraint: never rewrite unrelated routers."
+    updated = f"{original.rstrip()}\n\n{extra}"
+
+    edit = client.post(f"/sessions/{session_id}/edit", json={"body": updated})
+    assert edit.status_code == 200
+    body = edit.json()
+
+    assert body["edit_intent"] == EditIntent.DIRECT_EDIT
+    assert extra in body["revised_draft"]["body"]
+    assert extra in body["current_draft"]["body"]
+    assert body["revised_draft"]["version"] == 2
+    assert body["session"]["state"] == SessionState.EDIT
+
+
 def test_edit_api_response_includes_revised_fields(client: TestClient) -> None:
     create = client.post("/sessions", json={"initial_request": "Write a release note prompt"})
     session_id = create.json()["session"]["id"]
@@ -133,9 +172,7 @@ def test_edit_api_response_includes_revised_fields(client: TestClient) -> None:
     assert body["edit_intent"] == EditIntent.CHANGE_TONE
     assert body["revised_draft"]["version"] == 2
     assert body["semantic_diff"]
-    assert body["updated_requirement_card"]["response_formatting"]["explanation_level"] == (
-        "analytical"
-    )
+    assert "analytical" in body["updated_requirement_card"]["task_identity"]["additional_constraints"][-1]
     assert body["session"]["state"] == SessionState.EDIT
 
 

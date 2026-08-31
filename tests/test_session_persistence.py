@@ -1,9 +1,10 @@
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 from prompt_piper_api.domain.enums import SessionState
-from prompt_piper_api.services.exceptions import SessionNotFoundError
+from prompt_piper_api.services.exceptions import SessionLoadError, SessionNotFoundError
 from prompt_piper_api.services.session_service import SessionService
 from prompt_piper_api.services.session_store import FileSessionStore
 
@@ -84,3 +85,34 @@ def test_delete_session_also_accepts_http_delete(client: TestClient) -> None:
     missing = client.delete("/sessions/00000000-0000-0000-0000-000000000099")
     assert missing.status_code == 404
     assert missing.json()["code"] == "session_not_found"
+
+
+def test_file_session_store_rejects_legacy_card_schema(tmp_path: Path) -> None:
+    session_id = uuid4()
+    store = FileSessionStore(tmp_path / "sessions")
+    path = tmp_path / "sessions" / f"{session_id}.json"
+    path.write_text(
+        """
+        {
+          "session": {
+            "id": "%s",
+            "title": "FlowBPM",
+            "state": "clarifying",
+            "requirement_card": {
+              "technical_context": {"environment": ""},
+              "core_task_scope": {"objective": "Build FlowBPM"}
+            }
+          },
+          "initial_request": "Build FlowBPM"
+        }
+        """
+        % session_id,
+        encoding="utf-8",
+    )
+    try:
+        store.get(session_id)
+    except SessionLoadError as exc:
+        assert "older requirement-card schema" in str(exc)
+    else:
+        raise AssertionError("expected SessionLoadError")
+

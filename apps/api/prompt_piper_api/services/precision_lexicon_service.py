@@ -32,6 +32,6 @@ class PrecisionLexiconService:
             category=finding.category,
             line=finding.line,
             objective=card.objective,
-            audience=card.technical_context.environment,
+            audience=card.task_identity.environment,
             max_suggestions=max_suggestions,
         )

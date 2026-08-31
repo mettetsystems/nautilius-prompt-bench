@@ -47,7 +47,7 @@ _POST_OPTIMIZATION_STATES = frozenset(
 )
 
 _ALLOWED: dict[SessionAction, frozenset[SessionState]] = {
-    ACTION_ANSWER: frozenset({SessionState.CLARIFYING}),
+    ACTION_ANSWER: frozenset({SessionState.CLARIFYING, SessionState.EDIT}),
     ACTION_COMPLETE_CLARIFICATION: frozenset({SessionState.CLARIFYING}),
     ACTION_EDIT: frozenset({SessionState.EDIT}),
     ACTION_FINALIZE: frozenset({SessionState.EDIT}),
