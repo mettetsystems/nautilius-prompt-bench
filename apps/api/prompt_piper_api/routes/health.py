@@ -77,3 +77,31 @@ def llm_health_check() -> LlmHealthResponse:
         message=probe.message,
         checked_at=utc_now(),
     )
+
+
+@router.post("/health/llm/offload")
+def offload_llm() -> dict[str, str]:
+    """Release the local chat model's memory without deleting its downloaded weights."""
+    import os
+    from pathlib import Path
+
+    from fastapi import HTTPException
+    from prompt_piper.setup.llama_launcher import read_managed_pid, stop_managed_server
+    from prompt_piper_api.llm.factory import clear_llm_client_cache
+
+    pid = read_managed_pid()
+    if pid is None:
+        raise HTTPException(409, "No managed model server. Stop externally hosted models in their host application.")
+    # A stale PID file must never stop an unrelated process.
+    try:
+        executable = Path(f"/proc/{pid}/exe").resolve(strict=True).name
+    except OSError:
+        raise HTTPException(409, "Managed model server is no longer running.") from None
+    if executable not in {"llama-server", "llama-server-bin"}:
+        raise HTTPException(409, "Cannot verify the managed model server process.")
+    if not stop_managed_server():
+        raise HTTPException(409, "No managed model server is running.")
+    os.environ["PROMPT_PIPER_LLM_ENABLED"] = "false"
+    get_settings.cache_clear()
+    clear_llm_client_cache()
+    return {"message": "Model offloaded. CPU mode is active. Restart the app to load the configured model again."}

@@ -161,3 +161,11 @@ def test_run_setup_wizard_unknown_preset_raises(tmp_path: Path) -> None:
     env_path = tmp_path / ".env"
     with pytest.raises(ValueError, match="Unknown preset"):
         run_setup_wizard(env_path=env_path, non_interactive="not-a-preset", print_fn=lambda _: None)
+
+
+def test_qwen3_14b_setup(tmp_path: Path) -> None:
+    env_path = tmp_path / ".env"
+    result = run_setup_wizard(env_path=env_path, non_interactive="native:qwen3-14b", print_fn=lambda _: None)
+    assert result.preset_id == "qwen3-14b"
+    assert "Qwen/Qwen3-14B-GGUF" in env_path.read_text()
+    assert "Qwen3-14B-Q4_K_M.gguf" in env_path.read_text()

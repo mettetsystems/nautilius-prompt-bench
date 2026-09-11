@@ -18,6 +18,7 @@ _PRESET_SIZE_HINTS: dict[str, ModelSizeClass] = {
     "qwen3-4b": ModelSizeClass.MEDIUM,
     "qwen3-3b": ModelSizeClass.MEDIUM,
     "qwen3-8b": ModelSizeClass.LARGE,
+    "qwen3-14b": ModelSizeClass.LARGE,
     "gemma3-12b": ModelSizeClass.LARGE,
 }
 

@@ -208,3 +208,15 @@ podman build -f infra/Containerfile.web -t prompt-piper-web .
 ```
 
 Container environment reference: `infra/env.podman.example`.
+
+### Larger prompt assistant and offloading
+
+Run `make setup`, choose Qwen3 and the Prosumer tier, then select **Qwen3 14B**.
+This optional official Q4_K_M preset downloads approximately 9 GB; allow 16 GB or
+more free VRAM for weights and context. It is suitable for an RTX 5090 with sufficient
+free memory. Existing small-model defaults remain available.
+
+Use **Offload model** in the application header after prompting to stop the
+Nautilius-managed llama-server and release its GPU memory. Downloaded weights and
+prompts remain on disk. Restart the app (`make dev-api`) to load it again.
+Externally hosted model servers must be stopped in their host application.

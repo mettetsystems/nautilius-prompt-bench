@@ -1,10 +1,17 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
 import { APP_NAME } from "@prompt-piper/shared";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import logoUrl from "@assets/logo/logo.png";
 import { fetchHealth, fetchLlmHealth } from "../api/sessions";
 
+import { apiFetch, formatApiError } from "../api/http";
+
 export function AppLayout() {
+  const queryClient = useQueryClient();
+  const offload = useMutation({
+    mutationFn: () => apiFetch<{ message: string }>("/health/llm/offload", { method: "POST" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["health"] }),
+  });
   const health = useQuery({
     queryKey: ["health"],
     queryFn: fetchHealth,
@@ -68,6 +75,14 @@ export function AppLayout() {
               </span>
             )}
           </div>
+          {llmHealth.data?.llm_enabled && (
+            <button type="button" disabled={offload.isPending} onClick={() => offload.mutate()}
+              title="Stop the managed local model server to free GPU memory">
+              {offload.isPending ? "Offloading…" : "Offload model"}
+            </button>
+          )}
+          {offload.isError && <span role="alert">{formatApiError(offload.error)}</span>}
+          {offload.isSuccess && <span role="status">{offload.data.message}</span>}
           <Link to="/settings" className="settings-gear" aria-label="Settings" title="Settings">
             ⚙
           </Link>

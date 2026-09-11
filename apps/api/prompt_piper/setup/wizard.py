@@ -102,7 +102,7 @@ def _run_interactive(read: InputFn, write: PrintFn) -> SetupResult:
         "\nChoose a model family:\n"
         "  1) Google Gemma 3 (1B – 12B; official google/* QAT GGUF)\n"
         "  2) Google Gemma 3n (E4B efficient; ~3–4B class)\n"
-        "  3) Qwen3 (0.6B – 8B; official Qwen/* GGUF)\n"
+        "  3) Qwen3 (0.6B – 14B; official Qwen/* GGUF)\n"
         "  4) Other — connect your own OpenAI-compatible endpoint (vLLM, Ollama, etc.)\n"
     )
     family_choice = _choose(read, "Choice", ("1", "2", "3", "4"), default="1")
@@ -247,7 +247,7 @@ def _resolve_non_interactive(spec: str) -> SetupResult:
     if preset is None:
         choices = (
             "cpu-only, gemma3-1b, gemma3-4b, gemma3-12b, gemma3n-e4b, "
-            "qwen3-0.6b, qwen3-1.7b, qwen3-4b, qwen3-8b, custom "
+            "qwen3-0.6b, qwen3-1.7b, qwen3-4b, qwen3-8b, qwen3-14b, custom "
             "(aliases: qwen3-1.5b, qwen3-3b, gemma3-3b)"
         )
         msg = f"Unknown preset {preset_part!r}. Choices: {choices}"

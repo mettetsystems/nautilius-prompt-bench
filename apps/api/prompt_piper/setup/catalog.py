@@ -198,6 +198,20 @@ QWEN3_PRESETS: tuple[ModelPreset, ...] = (
         min_vram_mb=16384,
         notes="Official Qwen GGUF; prosumer GPUs (RTX 4090/5080/5090 class, ~16GB+ VRAM).",
     ),
+    ModelPreset(
+        id="qwen3-14b",
+        family=ModelFamily.QWEN3,
+        label="Qwen3 14B — code prompt assistant (RTX 5090)",
+        size_label="14B",
+        chat_model_name="qwen3-14b",
+        suggested_gguf_filename="Qwen3-14B-Q4_K_M.gguf",
+        huggingface_gguf_repo="Qwen/Qwen3-14B-GGUF",
+        huggingface_gguf_file="Qwen3-14B-Q4_K_M.gguf",
+        publisher="Qwen",
+        tier=ModelTier.PROSUMER,
+        min_vram_mb=16384,
+        notes="Larger code prompt assistant; ~9GB download, 16GB+ free VRAM recommended. RTX 5090 suitable; context and other GPU workloads affect memory use.",
+    ),
 )
 
 ALL_PRESETS: dict[str, ModelPreset] = {
