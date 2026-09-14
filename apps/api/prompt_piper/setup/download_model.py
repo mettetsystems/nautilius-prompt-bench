@@ -19,6 +19,7 @@ class ModelDownloadPlan:
     target_path: Path
     preset: str | None
     cpu_only: bool
+    source_path: Path | None
     requires_auth_hint: bool
 
 
@@ -38,7 +39,12 @@ def _load_env(env_path: Path) -> dict[str, str]:
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, value = line.split("=", 1)
-        values[key.strip()] = value.strip().strip('"').strip("'")
+        import shlex
+        try:
+            parts = shlex.split(value.strip())
+            values[key.strip()] = parts[0] if len(parts) == 1 else value.strip()
+        except ValueError:
+            values[key.strip()] = value.strip()
     return values
 
 
@@ -78,6 +84,7 @@ def plan_model_download(
         preset=preset,
         cpu_only=cpu_only,
         requires_auth_hint=requires_auth,
+        source_path=Path(env["PROMPT_PIPER_LOCAL_MODEL_SOURCE_PATH"]).expanduser().resolve() if env.get("PROMPT_PIPER_LOCAL_MODEL_SOURCE") == "local" and env.get("PROMPT_PIPER_LOCAL_MODEL_SOURCE_PATH") else None,
     )
 
 
@@ -94,6 +101,29 @@ def download_configured_model(
             status="skipped",
             message="CPU-only mode is configured; no GGUF download is required.",
         )
+    if plan.source_path is not None:
+        import shutil
+        import tempfile
+        import os
+        from prompt_piper.setup.model_sources import local_gguf
+        temporary = None
+        try:
+            source = local_gguf(str(plan.source_path), plan.filename)
+            if source == plan.target_path or (plan.target_path.is_file() and not force):
+                return ModelDownloadResult("exists", f"Model already present: {plan.target_path}", plan.target_path)
+            plan.target_path.parent.mkdir(parents=True, exist_ok=True)
+            if shutil.disk_usage(plan.target_path.parent).free < source.stat().st_size:
+                raise ValueError("Not enough disk space to import the local model")
+            fd, temporary = tempfile.mkstemp(dir=plan.target_path.parent, prefix=".gguf-import-")
+            os.close(fd)
+            shutil.copyfile(source, temporary)
+            os.replace(temporary, plan.target_path)
+            return ModelDownloadResult("downloaded", f"Imported local model → {plan.target_path}", plan.target_path)
+        except (OSError, ValueError) as exc:
+            return ModelDownloadResult("error", f"Local model import failed: {exc}")
+        finally:
+            if temporary:
+                Path(temporary).unlink(missing_ok=True)
     if not plan.repo or not plan.filename:
         return ModelDownloadResult(
             status="error",
@@ -121,19 +151,23 @@ def download_configured_model(
             ),
         )
 
+    from prompt_piper.setup.model_sources import load_preferences
+    token = load_preferences().get("hf_token")
     try:
         downloaded = hf_hub_download(
             repo_id=plan.repo,
             filename=plan.filename,
             local_dir=str(plan.local_dir),
+            **({"token": token} if token else {}),
         )
     except Exception as exc:  # noqa: BLE001 - surface HF auth/network errors to the user
+        detail = str(exc).replace(token, "[redacted]") if token else str(exc)
         hint = ""
         if plan.requires_auth_hint:
             hint = " If this is a gated Gemma repo, run: hf auth login"
         return ModelDownloadResult(
             status="error",
-            message=f"Download failed for {plan.repo}/{plan.filename}: {exc}.{hint}",
+            message=f"Download failed for {plan.repo}/{plan.filename}: {detail}.{hint}",
         )
 
     path = Path(downloaded).resolve()

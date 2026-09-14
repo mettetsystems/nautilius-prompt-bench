@@ -6,12 +6,16 @@ from pathlib import Path
 _MANAGED_KEYS = frozenset(
     {
         "PROMPT_PIPER_LLM_ENABLED",
+        "PROMPT_PIPER_AUTO_START_LLM",
+        "PROMPT_PIPER_ALLOW_CPU_LLM",
         "PROMPT_PIPER_LOCAL_BASE_URL",
         "PROMPT_PIPER_LOCAL_CHAT_MODEL",
         "PROMPT_PIPER_LOCAL_EMBED_MODEL",
         "PROMPT_PIPER_LOCAL_API_KEY",
         "PROMPT_PIPER_LOCAL_MODEL_PRESET",
         "PROMPT_PIPER_LOCAL_MODEL_PATH",
+        "PROMPT_PIPER_LOCAL_MODEL_SOURCE",
+        "PROMPT_PIPER_LOCAL_MODEL_SOURCE_PATH",
         "PROMPT_PIPER_LOCAL_MODEL_GGUF_REPO",
         "PROMPT_PIPER_LOCAL_MODEL_GGUF_FILE",
     }
@@ -78,10 +82,10 @@ def upsert_lexicon_env_section(
 
 
 def _format_assignment(key: str, value: str) -> str:
-    if re.search(r"\s|#|\"", value):
-        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-        return f'{key}="{escaped}"'
-    return f"{key}={value}"
+    import shlex
+    if "\n" in value or "\r" in value:
+        raise ValueError("Environment values must fit on one line")
+    return f"{key}={shlex.quote(value)}"
 
 
 def _remove_managed_section(content: str) -> str:

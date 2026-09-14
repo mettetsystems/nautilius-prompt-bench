@@ -105,3 +105,10 @@ def offload_llm() -> dict[str, str]:
     get_settings.cache_clear()
     clear_llm_client_cache()
     return {"message": "Model offloaded. CPU mode is active. Restart the app to load the configured model again."}
+
+
+@router.get("/health/hardware")
+def hardware_capabilities() -> dict:
+    """Read-only scan; no model downloads, process starts, or setting changes."""
+    from prompt_piper.setup.hardware import scan_hardware
+    return scan_hardware()

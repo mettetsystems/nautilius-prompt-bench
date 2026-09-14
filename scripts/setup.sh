@@ -21,6 +21,11 @@ fi
 
 "${PYTHON}" -m prompt_piper.setup "$@"
 setup_status=$?
+for setup_arg in "$@"; do
+  case "$setup_arg" in
+    --hardware-scan|--clarification-only) exit "$setup_status" ;;
+  esac
+done
 
 if [[ "${setup_status}" -ne 0 ]]; then
   exit "${setup_status}"
@@ -46,6 +51,11 @@ llm_enabled="$(
 
 if [[ "${preset}" != "cpu-only" && "${llm_enabled}" != "false" && -n "${preset}" && "${preset}" != "custom" ]]; then
   echo ""
+  source_kind="$("${PYTHON}" -c 'from prompt_piper.setup.download_model import plan_model_download; print("local" if plan_model_download().source_path else "huggingface")')"
+  if [[ "$source_kind" == "local" ]]; then
+    echo "Importing the selected model from your local repository..."
+    "${PYTHON}" -m prompt_piper.setup.download_model
+  else
   echo "Local SLM selected (${preset}). Preparing GGUF download tooling..."
   "${VENV}/bin/pip" install -e "${API_DIR}[setup]" >/dev/null
   download_now="y"
@@ -61,6 +71,7 @@ if [[ "${preset}" != "cpu-only" && "${llm_enabled}" != "false" && -n "${preset}"
   fi
   echo ""
   "${PYTHON}" -c "from prompt_piper.setup.download_model import llama_server_status_message; print(llama_server_status_message())"
+  fi
 fi
 
 echo ""

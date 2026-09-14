@@ -46,7 +46,12 @@ def _load_env(env_path: Path) -> dict[str, str]:
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, value = line.split("=", 1)
-        values[key.strip()] = value.strip().strip('"').strip("'")
+        import shlex
+        try:
+            parts = shlex.split(value.strip())
+            values[key.strip()] = parts[0] if len(parts) == 1 else value.strip()
+        except ValueError:
+            values[key.strip()] = value.strip()
     return values
 
 
@@ -108,6 +113,11 @@ def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
 
     gpu = detect_gpu()
     cpu_only = gpu is None
+    if allow_cpu_llm and gpu is not None:
+        from prompt_piper.setup.catalog import ALL_PRESETS
+        selected = ALL_PRESETS.get(preset or "")
+        if selected and (gpu.free_vram_mb is None or gpu.free_vram_mb < selected.min_vram_mb):
+            cpu_only = True
     if cpu_only and not allow_cpu_llm:
         os.environ["PROMPT_PIPER_LLM_ENABLED"] = "false"
         return EnsureLlmResult(

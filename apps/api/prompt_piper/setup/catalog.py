@@ -217,6 +217,19 @@ QWEN3_PRESETS: tuple[ModelPreset, ...] = (
 ALL_PRESETS: dict[str, ModelPreset] = {
     preset.id: preset for preset in (*GEMMA3_PRESETS, *GEMMA3N_PRESETS, *QWEN3_PRESETS)
 }
+ALL_PRESETS["deepseek-r1-32b"] = ModelPreset(
+    id="deepseek-r1-32b", family=ModelFamily.CUSTOM,
+    label="DeepSeek R1 Distill Qwen 32B", size_label="32B",
+    chat_model_name="DeepSeek-R1-Distill-Qwen-32B",
+    suggested_gguf_filename="DeepSeek-R1-Distill-Qwen-32B-Q4_K_M.gguf",
+    huggingface_gguf_repo="bartowski/DeepSeek-R1-Distill-Qwen-32B-GGUF",
+    huggingface_gguf_file="DeepSeek-R1-Distill-Qwen-32B-Q4_K_M.gguf",
+    publisher="deepseek-ai", community_gguf=True,
+    weights_repo="deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",
+    tier=ModelTier.PROSUMER, min_vram_mb=24576,
+    notes="Community Q4_K_M conversion (~19.85GB); budget 24GiB+ free VRAM and 32GiB available RAM.",
+)
+
 for alias, target in PRESET_ALIASES.items():
     ALL_PRESETS[alias] = ALL_PRESETS[target]
 

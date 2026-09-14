@@ -1,3 +1,5 @@
+import { ModelSourceSettings } from "../components/ModelSourceSettings";
+import { HardwareRecommendations } from "../components/HardwareRecommendations";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { LlmHealthResponse } from "@prompt-piper/shared";
@@ -130,6 +132,8 @@ export function SettingsPage() {
         }
       />
 
+      <HardwareRecommendations />
+      <ModelSourceSettings />
       <Panel title="AI assistance">
         <label className="field checkbox-field">
           <input

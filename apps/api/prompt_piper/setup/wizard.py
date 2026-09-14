@@ -38,6 +38,8 @@ class SetupResult:
     chat_model: str | None
     api_key: str | None
     env_path: Path
+    allow_cpu: bool = False
+    local_source: Path | None = None
 
 
 InputFn = Callable[[str], str]
@@ -66,7 +68,10 @@ def run_setup_wizard(
     else:
         result = _run_interactive(read, write)
 
+    if not non_interactive and not result.cpu_only and result.preset_id != "custom":
+        result = _choose_model_source(result, read, write)
     _apply_result(target_env, result)
+    target_env.chmod(0o600)
     _print_next_steps(write, result)
     return result
 
@@ -81,7 +86,72 @@ def _banner() -> str:
     )
 
 
+def _choose_model_source(result: SetupResult, read: InputFn, write: PrintFn) -> SetupResult:
+    from dataclasses import replace
+    from getpass import getpass
+    from prompt_piper.setup.model_sources import load_preferences, save_preferences, local_gguf
+
+    prefs = load_preferences()
+    write("Model source: 1) Hugging Face download  2) Import from local repository/folder")
+    choice = _choose(read, "Source", ("1", "2"), default="2" if prefs.get("local_repo") else "1")
+    if choice == "1":
+        token = (getpass if read is input else read)("Hugging Face token (optional, hidden; Enter keeps saved token): ").strip()
+        if token:
+            save_preferences(hf_token=token)
+        return result
+    location = read(f"Local repository directory or GGUF file [{prefs.get('local_repo', '')}]: ").strip() or prefs.get("local_repo", "")
+    preset = ALL_PRESETS[result.preset_id]
+    source = local_gguf(location, preset.suggested_gguf_filename, read, write)
+    # Check the actual local file; a custom file may be larger than the recommended preset.
+    from prompt_piper.setup.hardware import scan_hardware
+    report = scan_hardware()
+    weights_mb = source.stat().st_size // 1048576
+    ram = report["available_ram_mb"]
+    free = (report["selected_gpu"] or {}).get("free_vram_mb")
+    if ram is None or ram < weights_mb + 2048:
+        raise ValueError("Not enough verified available RAM for this GGUF file")
+    if not result.allow_cpu and (free is None or free < weights_mb + 2048):
+        raise ValueError("Not enough verified free VRAM for this GGUF file; choose the CPU/low option or remote")
+    save_preferences(local_repo=location)
+    return replace(result, local_source=source, chat_model=source.stem)
+
+
 def _run_interactive(read: InputFn, write: PrintFn) -> SetupResult:
+    from dataclasses import replace
+    from prompt_piper.setup.hardware import print_hardware, scan_hardware
+
+    report = scan_hardware()
+    print_hardware(report, write)
+    write("  0) Rule-based mode (no model)\n  5) Advanced model catalog")
+    default = {"low": "1", "mid": "2", "high": "3", "remote": "4"}[report["recommended"]]
+    while True:
+        choice = _choose(read, "Model choice", ("0", "1", "2", "3", "4", "5"), default=default)
+        if choice == "0":
+            return SetupResult(True, None, None, None, None, Path())
+        if choice == "5":
+            return _run_advanced(read, write)
+        if choice == "4":
+            from urllib.parse import urlparse
+            endpoint = read("Remote OpenAI-compatible base URL (including /v1): ").strip()
+            if urlparse(endpoint).scheme not in {"http", "https"} or not urlparse(endpoint).hostname:
+                write("Enter an http(s) URL with a hostname.")
+                continue
+            model = read("Remote model ID: ").strip()
+            if not model:
+                write("A model ID is required.")
+                continue
+            key = read("API key (optional; stored in .env): ").strip() or None
+            return SetupResult(False, "custom", endpoint, model, key, Path())
+        option = report["local_options"][int(choice)-1]
+        if option["status"] == "unavailable":
+            write(option["reason"])
+            continue
+        deployment = _ask_deployment(read, write)
+        result = _preset_result(ALL_PRESETS[option["preset"]], PODMAN_BASE_URL if deployment == "podman" else NATIVE_BASE_URL)
+        return replace(result, allow_cpu=option["status"] == "cpu")
+
+
+def _run_advanced(read: InputFn, write: PrintFn) -> SetupResult:
     write(
         "\nHow should Nautilius Prompting Workbench handle clarification and draft wording?\n"
         "  1) CPU-only mode (no local chat model; rule-based fallbacks)\n"
@@ -263,6 +333,8 @@ def _apply_result(env_path: Path, result: SetupResult) -> None:
             {
                 "PROMPT_PIPER_LLM_ENABLED": "false",
                 "PROMPT_PIPER_LOCAL_MODEL_PRESET": "cpu-only",
+                "PROMPT_PIPER_AUTO_START_LLM": "false",
+                "PROMPT_PIPER_ALLOW_CPU_LLM": "false",
             },
         )
         return
@@ -271,6 +343,8 @@ def _apply_result(env_path: Path, result: SetupResult) -> None:
     assert result.chat_model is not None
     values: dict[str, str] = {
         "PROMPT_PIPER_LLM_ENABLED": "true",
+        "PROMPT_PIPER_AUTO_START_LLM": "false" if result.preset_id == "custom" else "true",
+        "PROMPT_PIPER_ALLOW_CPU_LLM": str(result.allow_cpu).lower(),
         "PROMPT_PIPER_LOCAL_BASE_URL": result.base_url,
         "PROMPT_PIPER_LOCAL_CHAT_MODEL": result.chat_model,
         "PROMPT_PIPER_LOCAL_EMBED_MODEL": result.chat_model,
@@ -282,6 +356,12 @@ def _apply_result(env_path: Path, result: SetupResult) -> None:
         values["PROMPT_PIPER_LOCAL_MODEL_PATH"] = f"./data/models/{preset.suggested_gguf_filename}"
         values["PROMPT_PIPER_LOCAL_MODEL_GGUF_REPO"] = preset.huggingface_gguf_repo
         values["PROMPT_PIPER_LOCAL_MODEL_GGUF_FILE"] = preset.huggingface_gguf_file
+        if result.local_source is not None:
+            values["PROMPT_PIPER_LOCAL_MODEL_SOURCE"] = "local"
+            values["PROMPT_PIPER_LOCAL_MODEL_SOURCE_PATH"] = str(result.local_source)
+            values["PROMPT_PIPER_LOCAL_MODEL_PATH"] = str(repo_root() / "data" / "models" / result.local_source.name)
+        else:
+            values["PROMPT_PIPER_LOCAL_MODEL_SOURCE"] = "huggingface"
         preamble = (
             *hf_cli_env_comments(repo_root=repo_root()),
             f"# Official publisher: {preset.publisher}",

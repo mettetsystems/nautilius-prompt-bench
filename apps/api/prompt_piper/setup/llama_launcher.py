@@ -22,6 +22,8 @@ class LlamaServerConfig:
     gpu_layers: int
     model_path: Path
     binary: Path
+    device_id: str | None = None
+    vendor: str | None = None
 
 
 def _env_int(name: str) -> int | None:
@@ -207,6 +209,8 @@ def build_server_config(
         gpu_layers=tuned_ngl,
         model_path=model_path,
         binary=binary,
+        device_id=gpu.device_id if gpu else None,
+        vendor=gpu.vendor if gpu else None,
     )
 
 
@@ -294,10 +298,16 @@ def start_server(
         stdout = log_handle
         stderr = log_handle
 
+    process_env = os.environ.copy()
+    if config.device_id is not None:
+        visibility = "CUDA_VISIBLE_DEVICES" if config.vendor == "nvidia" else "ROCR_VISIBLE_DEVICES"
+        process_env.setdefault(visibility, config.device_id)
+
     process = subprocess.Popen(
         llama_command(config),
         stdout=stdout,
         stderr=stderr,
+        env=process_env,
         start_new_session=True,
         text=True,
     )

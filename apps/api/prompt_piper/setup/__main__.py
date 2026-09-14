@@ -27,9 +27,14 @@ def main(argv: list[str] | None = None) -> int:
         help="Path to .env file (default: repo root .env).",
     )
     parser.add_argument("--clarification-only", action="store_true", help="Configure the dedicated large clarification model without changing the lightweight model.")
+    parser.add_argument("--hardware-scan", action="store_true", help="Print GPU inventory and recommendations without changing configuration.")
     args = parser.parse_args(argv)
 
     try:
+        if args.hardware_scan:
+            from prompt_piper.setup.hardware import print_hardware, scan_hardware
+            print_hardware(scan_hardware())
+            return 0
         from prompt_piper.setup.clarification_model import configure_clarification_model
         if args.clarification_only:
             configure_clarification_model(None if args.env_file is None else Path(args.env_file))

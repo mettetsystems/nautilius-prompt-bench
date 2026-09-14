@@ -42,3 +42,29 @@ def update_user_settings(
 ) -> UserSettingsResponse:
     saved = user_settings.update(to_user_settings(payload))
     return to_user_settings_response(saved, settings)
+
+
+from pydantic import BaseModel, SecretStr
+
+
+class ModelSourceUpdate(BaseModel):
+    hf_token: SecretStr | None = None
+    local_repo: str | None = None
+    clear_token: bool = False
+
+
+@router.get("/model-source")
+def get_model_source() -> dict:
+    from prompt_piper.setup.model_sources import public_preferences
+    return public_preferences()
+
+
+@router.put("/model-source")
+def update_model_source(payload: ModelSourceUpdate) -> dict:
+    from fastapi import HTTPException
+    from prompt_piper.setup.model_sources import save_preferences
+    try:
+        return save_preferences(hf_token=payload.hf_token.get_secret_value() if payload.hf_token else None,
+                                local_repo=payload.local_repo, clear_token=payload.clear_token)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None

@@ -70,3 +70,8 @@ data/model-cache/**
 .coverage
 htmlcov/
 data/demo/registry/
+
+# Hardware-reconfiguration backups can contain endpoint credentials.
+.env.hardware-*.bak
+data/model-source.json
+data/.model-source-*

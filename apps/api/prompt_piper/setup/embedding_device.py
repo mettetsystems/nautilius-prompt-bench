@@ -41,7 +41,7 @@ def resolve_embedding_device(gpu: GpuInfo | None = None) -> EmbeddingDeviceDecis
             gpu=resolved_gpu,
         )
 
-    probe = _probe_pytorch_cuda()
+    probe = _probe_pytorch_cuda(resolved_gpu)
     if probe is not None:
         return EmbeddingDeviceDecision(probe.device, probe.reason, gpu=resolved_gpu)
 
@@ -52,7 +52,7 @@ def resolve_embedding_device(gpu: GpuInfo | None = None) -> EmbeddingDeviceDecis
     )
 
 
-def _probe_pytorch_cuda() -> EmbeddingDeviceDecision | None:
+def _probe_pytorch_cuda(gpu: GpuInfo | None = None) -> EmbeddingDeviceDecision | None:
     try:
         import torch
     except ImportError:
@@ -62,8 +62,15 @@ def _probe_pytorch_cuda() -> EmbeddingDeviceDecision | None:
         return EmbeddingDeviceDecision("cpu", "PyTorch CUDA is not available")
 
     try:
-        device_name = torch.cuda.get_device_name(0)
-        major, minor = torch.cuda.get_device_capability(0)
+        index = 0
+        if gpu is not None:
+            matching = [i for i in range(torch.cuda.device_count()) if torch.cuda.get_device_name(i) == gpu.name]
+            if not matching:
+                return EmbeddingDeviceDecision("cpu", "Detected GPU is not visible to this PyTorch build")
+            index = matching[0]
+        device = "cuda" if index == 0 else f"cuda:{index}"
+        device_name = torch.cuda.get_device_name(index)
+        major, minor = torch.cuda.get_device_capability(index)
     except Exception as exc:
         return EmbeddingDeviceDecision("cpu", f"PyTorch CUDA probe failed: {exc}")
 
@@ -77,10 +84,10 @@ def _probe_pytorch_cuda() -> EmbeddingDeviceDecision | None:
         )
 
     try:
-        weights = torch.zeros(32, 32, device="cuda")
-        indices = torch.tensor([0], device="cuda")
+        weights = torch.zeros(32, 32, device=device)
+        indices = torch.tensor([0], device=device)
         torch.nn.functional.embedding(indices, weights)
-        torch.cuda.synchronize()
+        torch.cuda.synchronize(index)
     except Exception as exc:
         return EmbeddingDeviceDecision(
             "cpu",
@@ -88,6 +95,6 @@ def _probe_pytorch_cuda() -> EmbeddingDeviceDecision | None:
         )
 
     return EmbeddingDeviceDecision(
-        "cuda",
+        device,
         f"{device_name} passed PyTorch CUDA embedding probe",
     )

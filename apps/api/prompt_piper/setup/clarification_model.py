@@ -11,26 +11,25 @@ DEFAULT_MODEL = "DeepSeek-R1-Distill-Qwen-32B"
 
 
 def configure_clarification_model(env_path: Path | None = None, *, read=input, write=print) -> None:
+    from prompt_piper.setup.hardware import print_hardware, scan_hardware
+
+    print_hardware(scan_hardware(), write)
     gpu = detect_gpu()
     if gpu is None:
         write("GPU resources could not be verified. No model will be downloaded or launched.")
     else:
         write(f"GPU: {gpu.name}; total VRAM {gpu.vram_mb} MiB; free {gpu.free_vram_mb} MiB.")
     write(
-        
-            "Optional dedicated clarification model: 1) "
-            "DeepSeek-R1-Distill-Qwen-32B Q4_K_M (large default), 2) Qwen3-14B "
-            "Q4_K_M, 3) custom endpoint, 4) lightweight only."
-        
+        "Optional dedicated clarification model: 1) "
+        "DeepSeek-R1-Distill-Qwen-32B Q4_K_M (large default), 2) Qwen3-14B "
+        "Q4_K_M, 3) custom endpoint, 4) lightweight only."
     )
     write(
-        
-            "32B Q4_K_M: ~19.85 GB weights; budget at least 24 GiB free VRAM and 32"
-            " GiB available RAM for a modest context. Longer contexts need more. "
-            "Expect tens of seconds to minutes, not instant replies. 14B Q4_K_M: ~9"
-            " GB weights, budget 16 GiB free VRAM. Actual speed depends on hardware"
-            " and context."
-        
+        "32B Q4_K_M: ~19.85 GB weights; budget at least 24 GiB free VRAM and 32"
+        " GiB available RAM for a modest context. Longer contexts need more. "
+        "Expect tens of seconds to minutes, not instant replies. 14B Q4_K_M: ~9"
+        " GB weights, budget 16 GiB free VRAM. Actual speed depends on hardware"
+        " and context."
     )
     choice = read("Clarification model [1/2/3/4, default 1]: ").strip() or "1"
     if choice not in {"1", "2", "3", "4"}:
@@ -62,9 +61,7 @@ def configure_clarification_model(env_path: Path | None = None, *, read=input, w
     ]
     path.write_text("\n".join([*lines, *(f"{k}={shlex.quote(v)}" for k, v in values.items()), ""]))
     write(
-        
-            "Configuration saved. Start the chosen endpoint yourself after checking"
-            " free GPU memory; restart the API to apply. No model was downloaded or"
-            " started."
-        
+        "Configuration saved. Start the chosen endpoint yourself after checking"
+        " free GPU memory; restart the API to apply. No model was downloaded or"
+        " started."
     )
