@@ -3,7 +3,6 @@ from pydantic import BaseModel, Field
 from prompt_piper_api.domain.artifacts import ArtifactGenerationResult
 from prompt_piper_api.domain.draft import PromptDraft
 from prompt_piper_api.domain.inference import SendToInferenceResult
-from prompt_piper_api.domain.limits import MAX_CLARIFICATION_QUESTIONS
 from prompt_piper_api.domain.optimization import OptimizationResult
 from prompt_piper_api.domain.pre_inference_metrics import PreInferenceMetrics
 from prompt_piper_api.domain.session import PromptSession
@@ -18,9 +17,10 @@ class SessionRecord(BaseModel):
     initial_request: str = Field(default="", description="Original intake text for this session.")
     drafts: list[PromptDraft] = Field(default_factory=list)
     pending_clarification: ClarificationQuestion | None = None
-    clarification_turn: int = Field(default=0, ge=0, le=MAX_CLARIFICATION_QUESTIONS)
+    clarification_turn: int = Field(default=0, ge=0)
     asked_clarification_fields: list[str] = Field(default_factory=list)
     last_clarification_answer: str | None = None
+    clarification_suggestions: list[dict] = Field(default_factory=list)
     edit_unresolved_asked: list[str] = Field(
         default_factory=list,
         description="Unresolved fields already asked during the current edit-pass queue.",

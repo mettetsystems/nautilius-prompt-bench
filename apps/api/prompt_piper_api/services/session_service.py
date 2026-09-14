@@ -8,7 +8,6 @@ from prompt_piper_api.domain.draft import PromptDraft
 from prompt_piper_api.domain.edit_intent import EditIntent
 from prompt_piper_api.domain.enums import SessionState
 from prompt_piper_api.domain.inference import SendToInferenceResult
-from prompt_piper_api.domain.limits import MAX_CLARIFICATION_QUESTIONS
 from prompt_piper_api.domain.optimization import OptimizationResult
 from prompt_piper_api.domain.pre_inference_metrics import PreInferenceMetrics
 from prompt_piper_api.domain.requirement_card import RequirementCard
@@ -276,7 +275,7 @@ class SessionService:
         self._cache[record.session.id] = record
         self._store.save(record)
 
-    def suggest_clarification(self, session_id: UUID) -> ClarificationSuggestions:
+    def suggest_clarification(self, session_id: UUID, current_answer: str = "", model: str = "lightweight", field_name: str | None = None) -> ClarificationSuggestions:
         record = self.get_session(session_id)
         session = record.session
         pending = record.pending_clarification
@@ -293,13 +292,30 @@ class SessionService:
                 action=ACTION_ANSWER,
             )
 
-        return self._suggestion_service.suggest(
+        if field_name is not None and field_name != pending.field_name:
+            raise ValueError("Question changed; regenerate suggestions for the current question.")
+        from prompt_piper_api.llm.factory import create_clarification_client
+        suggestion_service = self._suggestion_service
+        if model == "large":
+            from prompt_piper_api.config import get_settings
+            suggestion_service = ClarificationSuggestionService(
+                create_clarification_client(),
+                use_user_prompt="deepseek-r1" in get_settings().prompt_piper_clarification_model.casefold(),
+            )
+        result = suggestion_service.suggest(
+            current_answer=current_answer,
             initial_request=record.initial_request,
             card=session.requirement_card,
             field_name=pending.field_name,
             last_answer=record.last_clarification_answer,
             asked_fields=record.asked_clarification_fields,
         )
+        result.model_source = model
+        if model == "large" and not result.model_available:
+            result.message = "Dedicated clarification model unavailable. Configure it with make setup or check its endpoint and timeout. Your manual answer is unchanged."
+        record.clarification_suggestions.append(result.model_dump())
+        self._save(record)
+        return result
 
     def ask_the_locals(self, session_id: UUID) -> AskTheLocalsInsight:
         record = self.get_session(session_id)
@@ -390,9 +406,7 @@ class SessionService:
                 current_state=session.state.value,
                 action=ACTION_COMPLETE_CLARIFICATION,
             )
-        if not self._can_complete_clarification_early(record) and not (
-            record.clarification_turn >= MAX_CLARIFICATION_QUESTIONS
-        ):
+        if not self._can_complete_clarification_early(record):
             raise StateTransitionError(
                 "Fill or mark remaining fields as unspecified before generating a draft.",
                 current_state=session.state.value,
@@ -1138,7 +1152,7 @@ class SessionService:
         question = self._ranker.top_question(
             record.session.requirement_card,
             question_number=record.clarification_turn + 1,
-            total_questions=MAX_CLARIFICATION_QUESTIONS,
+            total_questions=len(set(record.asked_clarification_fields) | set(clarification_field_priority(record.session.requirement_card))),
             exclude=exclude,
             last_answer=record.last_clarification_answer,
         )
@@ -1153,7 +1167,7 @@ class SessionService:
         missing = self._ranker.missing_fields(card)
         if not missing:
             return True
-        return record.clarification_turn >= MAX_CLARIFICATION_QUESTIONS
+        return all(field in record.asked_clarification_fields for field in missing)
 
     def _can_complete_clarification_early(self, record: SessionRecord) -> bool:
         card = record.session.requirement_card

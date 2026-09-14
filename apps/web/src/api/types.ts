@@ -45,6 +45,7 @@ export interface AgentContract {
 }
 
 export interface RequirementCard {
+  application_requirements?: Record<string, string>;
   task_identity?: TaskIdentity;
   agent_contract?: AgentContract;
   optimization_targets: OptimizationTargets;
@@ -53,6 +54,13 @@ export interface RequirementCard {
 
 export interface ClarificationSuggestionsResponse {
   field_name: string;
+  original_answer?: string;
+  proposed_answer?: string;
+  recommendations?: string[];
+  assumptions?: string[];
+  conflicts?: string[];
+  follow_up_questions?: string[];
+  model_source?: string;
   suggested_question: string | null;
   suggested_answers: string[];
   model_available: boolean;
@@ -363,6 +371,7 @@ export interface UserSettingsUpdateRequest {
 }
 
 export interface SessionDetailResponse {
+  clarification_open_decisions?: string[];
   session: SessionSummary;
   requirement_card: RequirementCard;
   clarification_question: string | null;

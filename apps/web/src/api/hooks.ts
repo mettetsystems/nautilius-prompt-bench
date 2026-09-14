@@ -135,7 +135,7 @@ export function useCompleteClarification(sessionId: string) {
 
 export function useSuggestClarification(sessionId: string) {
   return useMutation({
-    mutationFn: () => suggestClarification(sessionId),
+    mutationFn: (payload?: { current_answer: string; model: "lightweight" | "large"; field_name?: string }) => suggestClarification(sessionId, payload),
   });
 }
 

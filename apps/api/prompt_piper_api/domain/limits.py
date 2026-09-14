@@ -9,4 +9,5 @@ MAX_DRAFT_BODY_CHARS = 256_000
 MAX_REQUIREMENT_CARD_ITEM_CHARS = 8_192
 MAX_REQUIREMENT_CARD_LIST_ITEMS = 64
 MAX_AUDIT_MESSAGE_CHARS = 512
+# Legacy presentation default for saved sessions; not a limit on the adaptive queue.
 MAX_CLARIFICATION_QUESTIONS = 16

@@ -220,3 +220,5 @@ Use **Offload model** in the application header after prompting to stop the
 Nautilius-managed llama-server and release its GPU memory. Downloaded weights and
 prompts remain on disk. Restart the app (`make dev-api`) to load it again.
 Externally hosted model servers must be stopped in their host application.
+
+See [clarification requirements and dedicated model setup](clarification.md) for the optional DeepSeek-R1-Distill-Qwen-32B assistant and editable answer expansions.

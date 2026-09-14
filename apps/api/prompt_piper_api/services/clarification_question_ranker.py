@@ -6,6 +6,12 @@ from prompt_piper_api.domain.agent_contract import (
     CONTRACT_FIELD_NAMES,
     quick_reply_labels,
 )
+from prompt_piper_api.domain.application_requirements import (
+    APPLICATION_FIELD_NAMES,
+    APPLICATION_QUESTIONS,
+    applicable_application_fields,
+)
+
 from prompt_piper_api.domain.limits import MAX_CLARIFICATION_QUESTIONS
 from prompt_piper_api.domain.requirement_card import LEAF_FIELD_NAMES, RequirementCard
 from prompt_piper_api.llm.base import LLMClient
@@ -21,8 +27,8 @@ from prompt_piper_api.services.clarification_prompts import (
 
 REQUIRED_CLARIFICATION_COUNT = MAX_CLARIFICATION_QUESTIONS
 
-# Sixteen operational-control questions in the long-horizon contract order.
-CLARIFICATION_FIELD_PRIORITY: tuple[str, ...] = CONTRACT_FIELD_NAMES
+
+CLARIFICATION_FIELD_PRIORITY: tuple[str, ...] = (*APPLICATION_FIELD_NAMES, *CONTRACT_FIELD_NAMES)
 
 # Task identity is extracted from the initial request. Optimization targets are
 # fixed to clarity-first and are not queued as questions.
@@ -46,16 +52,37 @@ REFINEMENT_FIELD_PRIORITY: tuple[str, ...] = (
 )
 
 QUICK_REPLY_OPTIONS: dict[str, tuple[str, ...]] = {
-    field_name: quick_reply_labels(field_name) for field_name in CONTRACT_FIELD_NAMES
+    field_name: (
+        *quick_reply_labels(field_name)[:-1],
+        "Unsure",
+        "Not applicable",
+        "Recommend an option",
+        "unspecified",
+    )
+    for field_name in CONTRACT_FIELD_NAMES
 }
+
+QUICK_REPLY_OPTIONS.update(
+    {q.field_name: tuple(o.label for o in q.options) for q in APPLICATION_QUESTIONS}
+)
 
 UNSPECIFIED_ANSWERS = frozenset({"unspecified", "skip", "unknown", "not sure", "n/a"})
 
 
 def clarification_field_priority(card: RequirementCard) -> tuple[str, ...]:
-    """Field order for clarification (16-question agent contract)."""
-    del card  # Priority is fixed for the coding workbench.
-    return CLARIFICATION_FIELD_PRIORITY
+    """Applicable application decisions followed by requested agent policies."""
+    contract = CONTRACT_FIELD_NAMES
+    if card.application_requirements.harness_controls == "Use receiving harness controls":
+        delegated = {
+            "execution_strategy",
+            "failure_recovery",
+            "persistent_memory",
+            "resource_budget",
+            "context_compaction",
+            "rollback_protocol",
+        }
+        contract = tuple(f for f in contract if f.split(".")[1] not in delegated)
+    return (*applicable_application_fields(card), *contract)
 
 
 def prune_deferred_unresolved(card: RequirementCard) -> None:
@@ -96,8 +123,8 @@ class ClarificationQuestion(BaseModel):
     @field_validator("quick_reply_options")
     @classmethod
     def validate_quick_replies(cls, options: list[str]) -> list[str]:
-        if len(options) < 4 or len(options) > 6:
-            msg = "Quick reply options must include 3 to 5 choices plus unspecified."
+        if len(options) < 4:
+            msg = "Quick reply options must include at least three choices plus unspecified."
             raise ValueError(msg)
         if options[-1].strip().lower() != "unspecified":
             msg = "Quick reply options must end with unspecified."
@@ -124,7 +151,7 @@ class ClarificationQuestionRanker:
             self.build_question(
                 field_name,
                 question_number=index,
-                total_questions=MAX_CLARIFICATION_QUESTIONS,
+                total_questions=len(clarification_field_priority(card)),
                 card=card,
             )
             for index, field_name in enumerate(ordered_fields, start=1)
@@ -151,17 +178,6 @@ class ClarificationQuestionRanker:
                 last_answer=last_answer,
             )
 
-        for index, field_name in enumerate(REFINEMENT_FIELD_PRIORITY, start=1):
-            if field_name in exclude:
-                continue
-            return self.build_question(
-                field_name,
-                question_number=question_number,
-                total_questions=total_questions,
-                rank=index,
-                card=card,
-                last_answer=last_answer,
-            )
         return None
 
     def build_question(

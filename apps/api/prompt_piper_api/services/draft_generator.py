@@ -8,8 +8,8 @@ from prompt_piper_api.domain.requirement_card import (
 from prompt_piper_api.llm.base import ChatMessage, LLMClient
 from prompt_piper_api.llm.fallback import with_llm_fallback
 from prompt_piper_api.services.clarification_question_ranker import (
-    CLARIFICATION_FIELD_PRIORITY,
     ClarificationQuestionRanker,
+    clarification_field_priority,
     prune_deferred_unresolved,
 )
 from prompt_piper_api.services.draft_result import DraftGenerationResult
@@ -62,6 +62,8 @@ class DraftGenerator:
             ],
         )
         body = response.content.strip()
+        if any(value.strip() and value.strip() not in body for value in card.application_requirements.model_dump().values()):
+            return self._generate_rule_based(card)
         if not body or self._looks_like_hallucinated(body, card, unresolved):
             return self._generate_rule_based(card)
         return DraftGenerationResult.from_parts(body=body, unresolved_fields=unresolved)
@@ -73,7 +75,7 @@ class DraftGenerator:
 
     def _unspecified_fields(self, card: RequirementCard) -> list[str]:
         unspecified = [
-            field for field in CLARIFICATION_FIELD_PRIORITY if card.is_leaf_missing(field)
+            field for field in clarification_field_priority(card) if card.is_leaf_missing(field)
         ]
         card.mark_unresolved(*unspecified)
         prune_deferred_unresolved(card)

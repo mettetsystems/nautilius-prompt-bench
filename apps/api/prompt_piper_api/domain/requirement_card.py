@@ -5,6 +5,10 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from prompt_piper_api.domain.agent_contract import CONTRACT_FIELD_NAMES, CONTRACT_SECTION_TITLES
+from prompt_piper_api.domain.application_requirements import (
+    APPLICATION_FIELD_NAMES,
+    ApplicationRequirements,
+)
 
 
 class OptimizationTargets(BaseModel):
@@ -89,6 +93,7 @@ LEAF_FIELD_NAMES: frozenset[str] = frozenset(
         "task_identity.environment",
         "task_identity.additional_constraints",
         *CONTRACT_FIELD_NAMES,
+        *APPLICATION_FIELD_NAMES,
         "optimization_targets",
     }
 )
@@ -109,6 +114,7 @@ class RequirementCard(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    application_requirements: ApplicationRequirements = Field(default_factory=ApplicationRequirements)
     task_identity: TaskIdentity = Field(default_factory=TaskIdentity)
     agent_contract: AgentContract = Field(default_factory=AgentContract)
     optimization_targets: OptimizationTargets = Field(default_factory=OptimizationTargets)

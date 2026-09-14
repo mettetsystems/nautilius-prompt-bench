@@ -125,11 +125,19 @@ def build_harness_lines(card: RequirementCard) -> dict[str, list[str]]:
     if card.optimization_targets.clarity and str(card.optimization_targets.clarity).strip():
         identity.append(f"Optimization priority: {card.optimization_targets.clarity.strip()}")
 
+    from prompt_piper_api.domain.application_requirements import APPLICATION_QUESTIONS, applicable_application_fields
+    relevant = applicable_application_fields(card)
+    for question in APPLICATION_QUESTIONS:
+        value = card.get_leaf(question.field_name).strip()
+        if value or question.field_name in relevant:
+            identity.append(f"{question.section_title}: {value or 'unspecified (open decision)'}")
     sections: dict[str, list[str]] = {"Task Identity": identity}
     contract = card.agent_contract
     for question in CONTRACT_QUESTIONS:
         leaf = question.field_name.split(".", 1)[1]
         value = getattr(contract, leaf)
+        if not value and card.application_requirements.harness_controls == "Use receiving harness controls" and leaf in {"execution_strategy", "failure_recovery", "persistent_memory", "resource_budget", "context_compaction", "rollback_protocol"}:
+            value = "Use the receiving harness controls; no additional policy specified."
         sections[question.section_title] = _policy_lines(card, question.field_name, value)
     return sections
 

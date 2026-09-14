@@ -110,6 +110,9 @@ export function RequirementCardPanel({
         <ListBlock label="Additional constraints" items={task.additional_constraints} />
       </DimensionGroup>
 
+      {card.application_requirements && <DimensionGroup heading="Application requirements">
+        {Object.entries(card.application_requirements).map(([key, value]) => <FieldBlock key={key} label={key.replaceAll("_", " ")} value={value} />)}
+      </DimensionGroup>}
       <DimensionGroup heading="Operational control (16 questions)">
         {CONTRACT_FIELDS.map((field) => (
           <FieldBlock key={field.key} label={field.label} value={contract[field.key]} />

@@ -91,7 +91,7 @@ function ClarificationVersionAccordions({
         <details
           key={version.level}
           className="clarification-version"
-          defaultOpen={version.level === "standard"}
+          open={version.level === "standard"}
         >
           <summary className="clarification-version-summary">
             <span className="clarification-version-label">{version.label}</span>
@@ -145,6 +145,9 @@ export function ClarificationQuestionPanel({
   });
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [customAnswer, setCustomAnswer] = useState("");
+  const [suggestionModel, setSuggestionModel] = useState<"lightweight" | "large">("lightweight");
+  const [proposedAnswer, setProposedAnswer] = useState("");
+  const activeQuestion = useRef("");
   const [modelSuggestions, setModelSuggestions] = useState<ClarificationSuggestionsResponse | null>(
     null,
   );
@@ -153,7 +156,9 @@ export function ClarificationQuestionPanel({
 
   const questionKey = `${session.clarification_question_number ?? 0}:${session.clarification_field ?? ""}`;
 
+  activeQuestion.current = questionKey;
   useEffect(() => {
+    setProposedAnswer("");
     setSelectedOptions([]);
     setCustomAnswer("");
     setModelSuggestions(null);
@@ -165,7 +170,7 @@ export function ClarificationQuestionPanel({
   const totalQuestions = session.clarification_total_questions ?? 16;
   const canFinish = showFinishButton && (session.clarification_can_finish ?? false);
   // Keep quick replies usable while Ask The Locals is in flight.
-  const isBusy = answer.isPending || complete.isPending || suggest.isPending;
+  const isBusy = answer.isPending || complete.isPending;
   const combinedAnswer = buildClarificationAnswer(selectedOptions, customAnswer);
   const canSubmit = combinedAnswer !== null;
   const modelEnabled = llmHealth.data?.llm_enabled === true && llmHealth.data.status === "ok";
@@ -188,30 +193,26 @@ export function ClarificationQuestionPanel({
     if (!value.trim()) {
       return;
     }
-    setSelectedOptions([]);
-    setCustomAnswer("");
-    setModelSuggestions(null);
-    setLocalsInsight(null);
-    await answer.mutateAsync(value.trim());
+    try {
+      await answer.mutateAsync(value.trim());
+    } catch { /* Keep the draft answer available for retry. */ }
   }
 
   async function requestModelSuggestions() {
-    const result = await suggest.mutateAsync();
-    setModelSuggestions(result);
+    const requestedQuestion = questionKey;
+    try {
+      const result = await suggest.mutateAsync({ current_answer: combinedAnswer ?? "", model: suggestionModel, field_name: session.clarification_field ?? undefined });
+      if (activeQuestion.current !== requestedQuestion) return;
+      setModelSuggestions(result);
+      setProposedAnswer(result.proposed_answer ?? "");
+    } catch { /* Error banner is supplied by the mutation. Manual answers remain usable. */ }
   }
 
   async function requestLocalsInsight() {
     const result = await locals.mutateAsync();
     setLocalsInsight(result);
     setLocalsCopied(false);
-    const shortAnswer = result.recommended_answer?.trim() || "";
-    if (result.model_available && shortAnswer && !result.insight?.trim()) {
-      setCustomAnswer(shortAnswer);
-      window.requestAnimationFrame(() => {
-        customAnswerRef.current?.focus();
-        customAnswerRef.current?.select();
-      });
-    }
+
   }
 
   function useLocalsAnswer(text: string) {
@@ -332,7 +333,7 @@ export function ClarificationQuestionPanel({
             <button
               type="button"
               className="button secondary"
-              disabled={isBusy || !modelEnabled}
+              disabled={isBusy || suggest.isPending}
               title={
                 modelEnabled
                   ? "Ask the local model for contextual answer suggestions"
@@ -343,6 +344,14 @@ export function ClarificationQuestionPanel({
               {suggest.isPending ? "Querying model…" : "Get model suggestions"}
             </button>
           </div>
+          <label className="field">
+            <span>Suggestion model</span>
+            <select value={suggestionModel} onChange={(event) => setSuggestionModel(event.target.value as "lightweight" | "large")} disabled={suggest.isPending}>
+              <option value="lightweight">Current lightweight model</option>
+              <option value="large">Dedicated large clarification model</option>
+            </select>
+          </label>
+          {suggest.isPending && <p role="status">Generating suggestions. Large models may take up to several minutes. You can continue manually.</p>}
           {modelSuggestions && (
             <div className="model-suggestions">
               <p className="muted">
@@ -351,6 +360,21 @@ export function ClarificationQuestionPanel({
                     ? "Select any model suggestions below."
                     : "Model suggestions unavailable.")}
               </p>
+              <p><strong>Your original answer:</strong> {modelSuggestions.original_answer || "No answer supplied"}</p>
+              {proposedAnswer && <label className="field"><span>Model proposal — edit before accepting</span>
+                <textarea aria-label="Model proposal" value={proposedAnswer} onChange={(event) => setProposedAnswer(event.target.value)} rows={4} maxLength={4096} />
+              </label>}
+              {(["recommendations", "assumptions", "conflicts", "follow_up_questions"] as const).map((kind) =>
+                (modelSuggestions[kind]?.length ?? 0) > 0 && <div key={kind}>
+                  <strong>{{ recommendations: "Recommendations (not requirements)", assumptions: "Unconfirmed assumptions", conflicts: "Conflicts with accepted answers", follow_up_questions: "Useful follow-up questions" }[kind]}</strong>
+                  <ul>{modelSuggestions[kind]?.map((text, i) => <li key={i}>{text}</li>)}</ul>
+                </div>)}
+              <div className="button-row">
+                <button type="button" disabled={!proposedAnswer.trim() || isBusy || Boolean(modelSuggestions.conflicts?.length)} onClick={() => { setSelectedOptions([]); setCustomAnswer(proposedAnswer); }}>Use edited proposal</button>
+                <button type="button" onClick={() => { setModelSuggestions(null); setProposedAnswer(""); }}>Reject suggestion</button>
+                <button type="button" disabled={suggest.isPending || isBusy} onClick={() => void requestModelSuggestions()}>Regenerate</button>
+              </div>
+              <p className="muted">Only Submit answer records your choice. Suggestions do not change accepted answers. Answer useful follow-ups in your custom text, or leave them explicitly open.</p>
               {modelSuggestions.suggested_answers.length > 0 && (
                 <div className="quick-replies" role="group" aria-label="Model suggestions">
                   {modelSuggestions.suggested_answers.map((option) => {
@@ -471,6 +495,11 @@ export function ClarificationQuestionPanel({
             </div>
           )}
           {errorMessage && <ErrorBanner message={errorMessage} />}
+          {(session.clarification_open_decisions?.length ?? 0) > 0 && <div role="status">
+            <strong>Open decisions that may affect implementation</strong>
+            <ul>{session.clarification_open_decisions?.map((field) => <li key={field}>{field.split(".").pop()?.replaceAll("_", " ")}</li>)}</ul>
+            <p>You can continue with these open. No requirements will be assumed; use “Recommend an option” or explain a deliberate deferral.</p>
+          </div>}
           <div className="button-row">
             <button
               type="button"

@@ -66,9 +66,11 @@ export function completeClarification(sessionId: string): Promise<SessionDetailR
 
 export function suggestClarification(
   sessionId: string,
+  payload?: { current_answer: string; model: "lightweight" | "large"; field_name?: string },
 ): Promise<ClarificationSuggestionsResponse> {
   return apiFetch<ClarificationSuggestionsResponse>(`/sessions/${sessionId}/clarify/suggest`, {
     method: "POST",
+    body: JSON.stringify(payload ?? {}),
   });
 }
 

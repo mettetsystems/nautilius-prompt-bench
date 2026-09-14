@@ -26,13 +26,20 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Path to .env file (default: repo root .env).",
     )
+    parser.add_argument("--clarification-only", action="store_true", help="Configure the dedicated large clarification model without changing the lightweight model.")
     args = parser.parse_args(argv)
 
     try:
+        from prompt_piper.setup.clarification_model import configure_clarification_model
+        if args.clarification_only:
+            configure_clarification_model(None if args.env_file is None else Path(args.env_file))
+            return 0
         run_setup_wizard(
             env_path=None if args.env_file is None else Path(args.env_file),
             non_interactive=args.non_interactive,
         )
+        if args.non_interactive is None:
+            configure_clarification_model(None if args.env_file is None else Path(args.env_file))
     except (KeyboardInterrupt, EOFError):
         print("\nSetup cancelled.", file=sys.stderr)
         return 130

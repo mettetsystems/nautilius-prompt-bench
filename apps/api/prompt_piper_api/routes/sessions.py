@@ -15,6 +15,7 @@ from prompt_piper_api.schemas.session import (
     AnswerClarificationRequest,
     AskTheLocalsResponse,
     ClarificationSuggestionsResponse,
+    ClarificationSuggestionRequest,
     CreateSessionFromTemplateRequest,
     CreateSessionRequest,
     EditDraftRequest,
@@ -116,9 +117,10 @@ def delete_session(
 @router.post("/{session_id}/clarify/suggest", response_model=ClarificationSuggestionsResponse)
 def suggest_clarification(
     session_id: UUID,
+    payload: ClarificationSuggestionRequest | None = None,
     service: SessionService = Depends(get_session_service),
 ) -> ClarificationSuggestionsResponse:
-    result = service.suggest_clarification(session_id)
+    result = service.suggest_clarification(session_id, **(payload.model_dump() if payload else {}))
     return ClarificationSuggestionsResponse.model_validate(result.model_dump())
 
 

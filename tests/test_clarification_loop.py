@@ -28,9 +28,9 @@ def test_ranker_uses_high_value_field_priority(ranker: ClarificationQuestionRank
     ranked = ranker.rank(card)
 
     assert [question.field_name for question in ranked[:3]] == [
-        "agent_contract.definition_of_done",
-        "agent_contract.change_scope",
-        "agent_contract.architecture_policy",
+        "application_requirements.project_context",
+        "application_requirements.target_environment",
+        "application_requirements.operating_systems",
     ]
 
 
@@ -54,7 +54,7 @@ def test_only_one_question_per_turn(service: SessionService) -> None:
 
     assert result.record.pending_clarification is not None
     assert result.clarification_question_number == 1
-    assert result.clarification_total_questions == MAX_CLARIFICATION_QUESTIONS
+    assert result.clarification_total_questions == len(ClarificationQuestionRanker().missing_fields(result.record.session.requirement_card))
     assert result.record.session.state is SessionState.CLARIFYING
 
 
@@ -62,7 +62,7 @@ def test_question_includes_quick_choices(service: SessionService) -> None:
     result = service.create_session(initial_request="Summarize customer interview notes")
 
     assert result.clarification_question is not None
-    assert f"Quick question 1 of {MAX_CLARIFICATION_QUESTIONS}:" in result.clarification_question
+    assert f"Quick question 1 of {result.clarification_total_questions}:" in result.clarification_question
     assert "Choose one or more options and/or answer in your own words:" in result.clarification_question
     assert result.clarification_quick_replies is not None
     assert len(result.clarification_quick_replies) >= 4

@@ -152,6 +152,12 @@ class RequirementCardExtractor:
             lambda client: self._extract_with_llm(client, initial_request),
             lambda: self._extract_rule_based(initial_request),
         )
+        from prompt_piper_api.domain.application_requirements import APPLICATION_QUESTIONS
+        for question in APPLICATION_QUESTIONS:
+            key = question.field_name.split(".")[1]
+            match = re.search(rf"^(?:{re.escape(question.section_title)}|{key}):\s*(.+)$", initial_request, re.MULTILINE | re.IGNORECASE)
+            if match:
+                card.set_leaf(question.field_name, match.group(1).strip())
         self._restore_full_intake_prose(card, initial_request)
         self._apply_tables_from_request(card, initial_request)
         return card
@@ -163,7 +169,7 @@ class RequirementCardExtractor:
             msg = "Clarification answer cannot be empty"
             raise ValueError(msg)
 
-        if is_unspecified_answer(cleaned):
+        if is_unspecified_answer(cleaned) and not (field_name.startswith("application_requirements.") and cleaned.casefold() not in {"unspecified", "skip"}):
             self._mark_unspecified(card, field_name)
             return
 
@@ -175,7 +181,7 @@ class RequirementCardExtractor:
                 ]
             return
 
-        expanded = expand_clarification_answer(field_name, cleaned)
+        expanded = cleaned if field_name.startswith("application_requirements.") else expand_clarification_answer(field_name, cleaned)
         self._assign(card, field_name, expanded)
         if field_name in card.unresolved_fields:
             card.unresolved_fields = [name for name in card.unresolved_fields if name != field_name]

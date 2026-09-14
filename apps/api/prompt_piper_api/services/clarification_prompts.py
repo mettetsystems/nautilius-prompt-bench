@@ -7,6 +7,7 @@ from enum import StrEnum
 from pydantic import BaseModel, Field
 
 from prompt_piper_api.domain.agent_contract import CONTRACT_QUESTIONS
+from prompt_piper_api.domain.application_requirements import APPLICATION_QUESTIONS
 
 
 class ClarificationLevel(StrEnum):
@@ -34,17 +35,20 @@ class ClarificationVersionText(BaseModel):
     )
 
 
+
+ALL_QUESTIONS = (*APPLICATION_QUESTIONS, *CONTRACT_QUESTIONS)
+
 STANDARD_PROMPTS: dict[str, str] = {
-    question.field_name: question.standard_prompt for question in CONTRACT_QUESTIONS
+    question.field_name: question.standard_prompt for question in ALL_QUESTIONS
 }
 
 BEGINNER_PROMPTS: dict[str, tuple[str, str]] = {
     question.field_name: (question.beginner_prompt, question.beginner_rationale)
-    for question in CONTRACT_QUESTIONS
+    for question in ALL_QUESTIONS
 }
 
 ADVANCED_PROMPTS: dict[str, str] = {
-    question.field_name: question.advanced_prompt for question in CONTRACT_QUESTIONS
+    question.field_name: question.advanced_prompt for question in ALL_QUESTIONS
 }
 
 FOCUSED_PROMPTS = STANDARD_PROMPTS

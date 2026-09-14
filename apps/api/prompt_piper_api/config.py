@@ -55,6 +55,19 @@ class Settings(BaseSettings):
         alias="DATABASE_URL",
     )
 
+    prompt_piper_clarification_base_url: str = Field(
+        default="http://127.0.0.1:8081/v1", alias="PROMPT_PIPER_CLARIFICATION_BASE_URL",
+    )
+    prompt_piper_clarification_model: str = Field(
+        default="DeepSeek-R1-Distill-Qwen-32B", alias="PROMPT_PIPER_CLARIFICATION_MODEL",
+    )
+    prompt_piper_clarification_enabled: bool = Field(
+        default=False, alias="PROMPT_PIPER_CLARIFICATION_ENABLED",
+    )
+    prompt_piper_clarification_timeout: float = Field(
+        default=180, ge=1, le=600, alias="PROMPT_PIPER_CLARIFICATION_TIMEOUT",
+    )
+
     prompt_piper_export_root: Path = Field(
         default_factory=lambda: Path.home() / "Documents" / "Nautilius",
         alias="PROMPT_PIPER_EXPORT_ROOT",

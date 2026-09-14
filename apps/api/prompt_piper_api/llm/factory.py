@@ -219,3 +219,23 @@ def env_snapshot() -> dict[str, str | None]:
         "PROMPT_PIPER_LOCAL_EMBED_MODEL": os.getenv("PROMPT_PIPER_LOCAL_EMBED_MODEL"),
         "PROMPT_PIPER_EXTERNAL_ENABLED": os.getenv("PROMPT_PIPER_EXTERNAL_ENABLED"),
     }
+
+
+def create_clarification_client() -> LLMClient | None:
+    """Explicit, dedicated local endpoint; never starts a model as a request side effect."""
+    from prompt_piper_api.services.user_settings_service import get_user_settings_service
+    app = get_settings()
+    if not app.prompt_piper_clarification_enabled or not get_user_settings_service().load().llm_enabled:
+        return None
+    return LocalOpenAICompatibleClient(
+        ModelSettings(
+            provider=ModelProvider.LOCAL_OPENAI_COMPATIBLE,
+            base_url=app.prompt_piper_clarification_base_url,
+            model_name=app.prompt_piper_clarification_model,
+            temperature=0.6,
+            max_tokens=4096,
+            enabled=True,
+            size_class=ModelSizeClass.LARGE,
+        ),
+        timeout=app.prompt_piper_clarification_timeout,
+    )

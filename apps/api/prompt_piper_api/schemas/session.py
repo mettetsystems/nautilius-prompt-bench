@@ -22,6 +22,7 @@ from prompt_piper_api.domain.similarity import SimilarityMatch
 from prompt_piper_api.services.clarification_option_guides import QuickReplyGuide
 from prompt_piper_api.services.clarification_prompts import ClarificationVersionText
 from prompt_piper_api.services.clarification_question_ranker import ClarificationQuestionRanker
+from prompt_piper_api.services.clarification_suggestion_service import ClarificationSuggestions
 from prompt_piper_api.services.first_shot_readiness import (
     FirstShotReadiness,
     assess_first_shot_readiness,
@@ -31,12 +32,14 @@ from prompt_piper_api.services.session_service import SessionActionResult
 from pydantic import BaseModel, Field, model_validator
 
 
-class ClarificationSuggestionsResponse(BaseModel):
-    field_name: str
-    suggested_question: str | None = None
-    suggested_answers: list[str] = Field(default_factory=list)
-    model_available: bool = False
-    message: str | None = None
+class ClarificationSuggestionsResponse(ClarificationSuggestions):
+    pass
+
+
+class ClarificationSuggestionRequest(BaseModel):
+    current_answer: str = Field(default="", max_length=4096)
+    model: str = Field(default="lightweight", pattern="^(lightweight|large)$")
+    field_name: str | None = None
 
 
 class AskTheLocalsResponse(BaseModel):
@@ -121,6 +124,14 @@ class SessionDetailResponse(BaseModel):
     clarification_quick_reply_guides: list[QuickReplyGuide] | None = None
     clarification_versions: list[ClarificationVersionText] | None = None
     clarification_can_finish: bool | None = None
+    clarification_open_decisions: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def identify_open_decisions(self):
+        from prompt_piper_api.domain.application_requirements import material_open_decisions
+        self.clarification_open_decisions = material_open_decisions(self.requirement_card)
+        return self
+
     current_draft: PromptDraft | None = None
     revised_draft: PromptDraft | None = None
     semantic_diff: str | None = None

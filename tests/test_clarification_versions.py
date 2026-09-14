@@ -81,7 +81,8 @@ def test_context_compaction_prompts_treat_100k_as_large_for_local_2026() -> None
 def test_beginner_option_guides_cover_every_quick_reply() -> None:
     assert_guides_cover_all_options()
     guides = build_quick_reply_guides("agent_contract.definition_of_done")
-    assert len(guides) == 4
+    assert len(guides) == 7
+    assert {"Unsure", "Not applicable", "Recommend an option"} <= {g.option for g in guides}
     assert "COMPLETE" in guides[0].option
 
 

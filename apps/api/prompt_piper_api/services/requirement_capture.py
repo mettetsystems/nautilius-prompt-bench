@@ -45,7 +45,10 @@ _BINDING_CAPTURE_SLOTS: tuple[ConstraintSlot, ...] = (
     ConstraintSlot.TOKEN_BUDGET,
 )
 
+from prompt_piper_api.domain.application_requirements import APPLICATION_FIELD_NAMES
+
 _STRING_LEAVES: tuple[str, ...] = (
+    *APPLICATION_FIELD_NAMES,
     "task_identity.objective",
     "task_identity.task_type",
     "task_identity.environment",
@@ -116,6 +119,7 @@ def collect_optimization_binding_phrases(
     for slot in _BINDING_CAPTURE_SLOTS:
         phrases.extend(graph.slots.get(slot.value, []))
     for value in (
+        *card.application_requirements.model_dump().values(),
         card.task_identity.objective,
         card.task_identity.environment,
         card.agent_contract.definition_of_done,
