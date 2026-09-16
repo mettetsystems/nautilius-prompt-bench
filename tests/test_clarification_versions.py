@@ -11,7 +11,6 @@ from prompt_piper_api.llm.mock import MockLLMClient
 from prompt_piper_api.llm.local_openai import extract_json_object
 from prompt_piper_api.services.ask_the_locals_service import (
     AskTheLocalsService,
-    _SHORT_ANSWER_MAX_TOKENS,
     collect_previous_answers,
 )
 from prompt_piper_api.services.clarification_option_guides import (
@@ -177,7 +176,7 @@ def test_ask_the_locals_clamps_verbose_recommendation_to_one_sentence() -> None:
     assert result.recommended_answer == "Use FastAPI with Pydantic."
 
 
-def test_ask_the_locals_requests_short_max_tokens() -> None:
+def test_ask_the_locals_uses_default_token_budget() -> None:
     mock = MockLLMClient(
         chat_responder=lambda _messages: json.dumps(
             {"recommended_answer": "Python 3.12 with FastAPI"}
@@ -190,8 +189,7 @@ def test_ask_the_locals_requests_short_max_tokens() -> None:
     )
     assert result.model_available is True
     assert result.insight == ""
-    assert mock.last_chat_max_tokens == _SHORT_ANSWER_MAX_TOKENS
-    assert _SHORT_ANSWER_MAX_TOKENS <= 64
+    assert mock.last_chat_max_tokens is None
 
 
 def test_ask_the_locals_uses_previous_answers_for_recommendation() -> None:

@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -164,6 +165,7 @@ class SessionService:
         audit: AuditLogService | None = None,
         store: SessionStore | None = None,
         user_settings: UserSettingsService | None = None,
+        precision_llm_factory: Callable[[], LLMClient | None] | None = None,
     ) -> None:
         self._store = store if store is not None else InMemorySessionStore()
         self._cache: dict[UUID, SessionRecord] = {}
@@ -179,7 +181,9 @@ class SessionService:
         self._optimizer = optimizer or TokenOptimizationEngine()
         self._quality_gate = QualityGateService()
         self._precision = SemanticPrecisionEvaluator()
-        self._precision_suggestions = PrecisionSuggestionService(llm)
+        self._precision_suggestions = PrecisionSuggestionService(
+            llm, llm_factory=precision_llm_factory,
+        )
         self._artifact_export = artifact_export
         self._external_inference = external_inference
         self._audit = audit
@@ -801,14 +805,6 @@ class SessionService:
             quality_gate_warnings=list(gate_result.warnings),
         )
 
-    def _llm_available(self) -> bool:
-        if self._llm is None:
-            return False
-        try:
-            return self._llm.health_check().ok
-        except Exception:
-            return False
-
     def _require_optimization_body(self, record: SessionRecord) -> str:
         session = record.session
         require_state(
@@ -838,14 +834,16 @@ class SessionService:
             threshold=self._user_settings.precision_warning_threshold(),
             vague_language_count=len(result.findings),
             findings=result.findings,
-            llm_available=self._llm_available(),
+            llm_available=self._precision_suggestions.model_available(),
             lexicon_available=lexicon,
             vector_index_available=vector_index,
             refinement_available=len(result.findings) > 0,
             optimized_body=body,
         )
 
-    def suggest_precision_replacement(self, session_id: UUID, *, finding_id: str):
+    def suggest_precision_replacement(
+        self, session_id: UUID, *, finding_id: str, use_llm: bool = True,
+    ):
         record = self.get_session(session_id)
         body = self._require_optimization_body(record)
         finding = self._find_precision_finding(record, body, finding_id)
@@ -853,6 +851,7 @@ class SessionService:
             finding=finding,
             body=body,
             card=record.session.requirement_card,
+            use_llm=use_llm,
         )
 
     def apply_precision_replacement(

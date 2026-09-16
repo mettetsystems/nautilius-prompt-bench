@@ -5,6 +5,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+for setup_arg in "$@"; do
+  if [[ "$setup_arg" == "--hardware-scan" ]]; then
+    exec "${ROOT}/apps/api/.venv/bin/python" -m prompt_piper.setup --hardware-scan
+  fi
+done
+
 if [[ ! -f .env ]]; then
   cp .env.example .env
   echo "Created .env from .env.example."
@@ -94,6 +100,9 @@ else
 fi
 
 echo ""
+echo "Verifying configured model inference..."
+"${PYTHON}" -m prompt_piper.setup.ensure_llm --strict
+
 echo "Next: make download-model   # if you skipped the GGUF download"
 echo "      make ensure-llm       # verify GPU + start llama-server"
 echo "      make dev-api          # terminal 1"

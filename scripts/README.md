@@ -40,3 +40,9 @@ make export
 ```
 
 All scripts use `set -euo pipefail` and resolve repo root relative to their own path.
+
+### Hardware changes
+
+Run `./scripts/rebuild-hardware.sh` to rescan, back up and refresh configuration,
+and rebuild the web app. `--scan-only` is read-only; `--llama-source PATH` also
+rebuilds an existing llama.cpp checkout. See [hardware setup](../docs/hardware-setup.md).

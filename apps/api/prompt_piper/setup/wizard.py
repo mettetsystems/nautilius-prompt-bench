@@ -12,7 +12,6 @@ from prompt_piper.setup.catalog import (
     PODMAN_BASE_URL,
     QWEN3_PRESETS,
     TIER_LABELS,
-    ModelFamily,
     ModelPreset,
     ModelTier,
     preset_fits_vram,
@@ -140,7 +139,8 @@ def _run_interactive(read: InputFn, write: PrintFn) -> SetupResult:
             if not model:
                 write("A model ID is required.")
                 continue
-            key = read("API key (optional; stored in .env): ").strip() or None
+            from getpass import getpass
+            key = (getpass if read is input else read)("API key (optional; stored in .env): ").strip() or None
             return SetupResult(False, "custom", endpoint, model, key, Path())
         option = report["local_options"][int(choice)-1]
         if option["status"] == "unavailable":

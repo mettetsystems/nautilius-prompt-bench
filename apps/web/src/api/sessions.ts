@@ -139,10 +139,11 @@ export function fetchPrecisionReview(sessionId: string): Promise<PrecisionReview
 export function suggestPrecisionReplacement(
   sessionId: string,
   findingId: string,
+  useLlm = true,
 ): Promise<PrecisionSuggestResponse> {
   return apiFetch<PrecisionSuggestResponse>(`/sessions/${sessionId}/precision/suggest`, {
     method: "POST",
-    body: JSON.stringify({ finding_id: findingId }),
+    body: JSON.stringify({ finding_id: findingId, use_llm: useLlm }),
   });
 }
 

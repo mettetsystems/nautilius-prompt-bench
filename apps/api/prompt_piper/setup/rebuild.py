@@ -109,9 +109,11 @@ def main(argv: list[str] | None = None) -> int:
                     ],
                     check=True,
                 )
-                print(
-                    f"Rebuilt llama-server: {build / 'bin/llama-server'}; set LLAMA_SERVER to this path."
-                )
+                from prompt_piper.setup.env_writer import _format_assignment
+                lines = [line for line in env_path.read_text().splitlines() if not line.startswith("LLAMA_SERVER=")]
+                lines.append(_format_assignment("LLAMA_SERVER", str(build / "bin/llama-server")))
+                env_path.write_text("\n".join(lines) + "\n")
+                print(f"Rebuilt and configured llama-server: {build / 'bin/llama-server'}")
     except (OSError, ValueError, subprocess.CalledProcessError) as exc:
         print(f"Hardware rebuild failed: {exc}. Your configuration backup and data are preserved.")
         return 1

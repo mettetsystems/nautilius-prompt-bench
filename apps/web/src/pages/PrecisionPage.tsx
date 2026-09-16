@@ -37,12 +37,12 @@ export function PrecisionPage({ sessionId }: PrecisionPageProps) {
   const apply = useApplyPrecisionReplacement(sessionId);
 
   const [index, setIndex] = useState(0);
+  const [useLlm, setUseLlm] = useState(true);
   const [selected, setSelected] = useState<string>("");
   const [custom, setCustom] = useState("");
   const [suggestions, setSuggestions] = useState<PrecisionSuggestResponse | null>(null);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const customInputRef = useRef<HTMLTextAreaElement | null>(null);
-  const activeFindingIdRef = useRef<string | null>(null);
 
   const findings = precisionQuery.data?.findings ?? [];
   const current: VagueLanguageFinding | undefined = findings[index];
@@ -52,16 +52,16 @@ export function PrecisionPage({ sessionId }: PrecisionPageProps) {
       return;
     }
     const findingId = current.id;
-    activeFindingIdRef.current = findingId;
+    let cancelled = false;
     setSelected("");
     setCustom("");
     setSuggestions(null);
     setSuggestionsLoading(true);
 
     void suggest
-      .mutateAsync(findingId)
+      .mutateAsync({ findingId, useLlm })
       .then((result) => {
-        if (activeFindingIdRef.current !== findingId) {
+        if (cancelled) {
           return;
         }
         setSuggestions(result);
@@ -77,18 +77,16 @@ export function PrecisionPage({ sessionId }: PrecisionPageProps) {
         // Error surfaced via suggest.error; keep the custom field usable.
       })
       .finally(() => {
-        if (activeFindingIdRef.current === findingId) {
+        if (!cancelled) {
           setSuggestionsLoading(false);
         }
       });
 
     return () => {
-      if (activeFindingIdRef.current === findingId) {
-        activeFindingIdRef.current = null;
-      }
+      cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch suggestions when finding changes
-  }, [current?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch when finding or mode changes
+  }, [current?.id, useLlm]);
 
   const replacement = useMemo(() => {
     if (custom.trim()) {
@@ -191,7 +189,7 @@ export function PrecisionPage({ sessionId }: PrecisionPageProps) {
       <PageHeader
         title="Refine semantic precision"
         subtitle={`Finding ${index + 1} of ${findings.length} · score ${formatPercent(review.score)} · ${
-          review.llm_available
+          useLlm && review.llm_available
             ? "model-ranked lexicon"
             : review.vector_index_available
               ? "vector lexicon"
@@ -214,6 +212,19 @@ export function PrecisionPage({ sessionId }: PrecisionPageProps) {
         </Panel>
 
         <Panel title="Choose a precise replacement">
+          <label>
+            <input
+              type="checkbox"
+              checked={useLlm}
+              onChange={(event) => setUseLlm(event.target.checked)}
+            />
+            Use AI tooling model
+          </label>
+          <p className="muted">
+            {useLlm
+              ? "Uses your current AI tooling model with the full optimized prompt. CPU-only suggestions are available if the model is unavailable."
+              : "CPU-only: WordNet, glossary, and available vector suggestions."}
+          </p>
           {suggestError && <ErrorBanner message={suggestError} />}
           {applyError && <ErrorBanner message={applyError} />}
 

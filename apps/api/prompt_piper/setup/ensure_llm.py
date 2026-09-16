@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from prompt_piper.setup.readiness import probe_inference
 from prompt_piper.setup.gpu_detect import detect_gpu
 from prompt_piper.setup.llama_launcher import (
     build_server_config,
@@ -92,24 +93,24 @@ def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
             message="CPU-only mode configured in .env.",
         )
 
-    if not auto_start:
-        return EnsureLlmResult(
-            mode="skipped",
-            llm_enabled=True,
-            message="Auto-start disabled (PROMPT_PIPER_AUTO_START_LLM=false).",
-        )
+    base_url = _env_lookup(env, "PROMPT_PIPER_LOCAL_BASE_URL") or "http://127.0.0.1:8080/v1"
+    model = _env_lookup(env, "PROMPT_PIPER_LOCAL_CHAT_MODEL") or "local-model"
+    api_key = _env_lookup(env, "PROMPT_PIPER_LOCAL_API_KEY")
 
-    base_url = env.get("PROMPT_PIPER_LOCAL_BASE_URL") or "http://127.0.0.1:8080/v1"
-    host, port = _parse_host_port(base_url)
-    openai_base = server_base_url(host, port)
+    def verify() -> EnsureLlmResult:
+        ok, message = probe_inference(base_url, model, api_key, wait_seconds=300)
+        os.environ["PROMPT_PIPER_LLM_ENABLED"] = "true" if ok else "false"
+        return EnsureLlmResult("already_running", ok, message)
 
-    if is_server_healthy(openai_base):
-        os.environ["PROMPT_PIPER_LLM_ENABLED"] = "true"
-        return EnsureLlmResult(
-            mode="already_running",
-            llm_enabled=True,
-            message=f"Local model server already reachable at {openai_base}.",
-        )
+    if not auto_start or is_server_healthy(base_url):
+        return verify()
+
+    from urllib.parse import urlsplit
+    address = urlsplit(base_url)
+    if address.hostname not in {"localhost", "127.0.0.1", "::1"}:
+        return verify()  # Never try to bind a server to a remote host.
+    host, port = address.hostname, address.port or (443 if address.scheme == "https" else 80)
+    openai_base = base_url
 
     gpu = detect_gpu()
     cpu_only = gpu is None
@@ -134,6 +135,13 @@ def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
         configured_path=env.get("PROMPT_PIPER_LOCAL_MODEL_PATH"),
         preset_id=preset,
     )
+    # New source-aware selections must never silently start an unrelated old GGUF.
+    if env.get("PROMPT_PIPER_LOCAL_MODEL_SOURCE") and env.get("PROMPT_PIPER_LOCAL_MODEL_PATH"):
+        expected = Path(env["PROMPT_PIPER_LOCAL_MODEL_PATH"]).expanduser()
+        if not expected.is_absolute():
+            expected = root / expected
+        if model_path != expected.resolve():
+            model_path = None
     if model_path is None:
         os.environ["PROMPT_PIPER_LLM_ENABLED"] = "false"
         return EnsureLlmResult(
@@ -145,6 +153,9 @@ def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
             ),
         )
 
+    configured_binary = _env_lookup(env, "LLAMA_SERVER")
+    if configured_binary:
+        os.environ["LLAMA_SERVER"] = configured_binary
     binary = find_llama_server()
     if binary is None:
         os.environ["PROMPT_PIPER_LLM_ENABLED"] = "false"
@@ -156,6 +167,12 @@ def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
                 + "Install llama.cpp or set LLAMA_SERVER=/path/to/llama-server."
             ),
         )
+
+    if not cpu_only:
+        from prompt_piper.setup.llama_launcher import supports_gpu
+        if not supports_gpu(binary, gpu.vendor):
+            return EnsureLlmResult("cpu_only", False,
+                f"{binary} cannot use the detected {gpu.vendor} GPU. Install a matching CUDA/ROCm build and runtime libraries; set LLAMA_SERVER to that binary.")
 
     managed_pid = read_managed_pid()
     if managed_pid is not None:
@@ -171,7 +188,7 @@ def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
     )
     log_path = root / "data" / "llama-server.log"
     process = start_server(config, log_path=log_path)
-    if not wait_for_server(openai_base, process=process):
+    if not wait_for_server(openai_base, process=process, timeout_seconds=300):
         stop_managed_server()
         os.environ["PROMPT_PIPER_LLM_ENABLED"] = "false"
         detail = ""
@@ -188,7 +205,10 @@ def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
             ),
         )
 
-    os.environ["PROMPT_PIPER_LLM_ENABLED"] = "true"
+    readiness = verify()
+    if not readiness.llm_enabled:
+        stop_managed_server()
+        return readiness
     if cpu_only:
         return EnsureLlmResult(
             mode="cpu",
@@ -231,6 +251,7 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Stop a Nautilius-managed llama-server process.",
     )
+    parser.add_argument("--strict", action="store_true", help="Fail startup when a configured model cannot perform inference.")
     args = parser.parse_args(argv)
 
     if args.stop:
@@ -244,7 +265,7 @@ def main(argv: list[str] | None = None) -> int:
         print(shell_export(result))
     else:
         print(result.message)
-    return 0
+    return 1 if args.strict and not result.llm_enabled and result.mode != "skipped" else 0
 
 
 if __name__ == "__main__":

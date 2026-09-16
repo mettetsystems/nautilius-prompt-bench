@@ -68,7 +68,7 @@ def llm_health_check() -> LlmHealthResponse:
             checked_at=utc_now(),
         )
 
-    probe = client.health_check()
+    probe = client.readiness_check()
     return LlmHealthResponse(
         llm_enabled=True,
         status="ok" if probe.ok else "unreachable",

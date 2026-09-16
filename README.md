@@ -14,7 +14,7 @@ Local-first **long-horizon coding-agent** prompting workbench. Design, clarify, 
 - **Step navigation** — revisit earlier steps from the workflow stepper; **re-open** edit, similarity, or optimization when you need to change course mid-session.
 - **Closed completed sessions** — exported sessions are read-only for audit; start a new session with **Use as template** from the Complete page.
 - **Binding-aware approval** — the pre-inference gate scores optimized prompts against constraint-graph bindings (not every optional card field), and the optimizer preserves those bindings while expanding for clarity.
-- **Semantic precision** — regex scoring for vague language on the Optimize step; **Refine precision** merges WordNet/glossary with an optional semantic vector index, then reranks with the local model when available.
+- **Semantic precision** — regex scoring for vague language on the Optimize step; **Refine precision** merges WordNet/glossary with an optional semantic vector index, then reranks with the current AI tooling model using the full optimized prompt when available. Model selection follows Settings without restarting the session. Uncheck **Use AI tooling model** for CPU-only lexicon/vector suggestions; these also remain the fallback when the model is unavailable.
 - **Send to model after export** — on the Complete page, optionally run the approved optimized prompt through the local or external model API; responses are saved as `inference_response.txt` beside other artifacts.
 - **Native dev ergonomics** — `make dev-api` probes GPU availability and can auto-start a local llama.cpp server; Vite proxies session API routes correctly during dev.
 

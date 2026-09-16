@@ -15,8 +15,6 @@ from prompt_piper_api.services.clarification_prompts import STANDARD_PROMPTS
 # Keep payloads small for tiny local models (e.g. qwen3-0.6b).
 _MAX_INITIAL_REQUEST_CHARS = 400
 _MAX_OPTION_GUIDES = 5
-# One-word to one-sentence JSON answer; keep decode budget tiny.
-_SHORT_ANSWER_MAX_TOKENS = 64
 
 
 def _first_sentence(text: str) -> str:
@@ -178,7 +176,6 @@ class AskTheLocalsService:
                 ChatMessage(role="user", content=json.dumps(context)),
             ],
             response_format={"type": "json_object"},
-            max_tokens=_SHORT_ANSWER_MAX_TOKENS,
         )
         payload = json.loads(response.content)
         recommended_answer = _first_sentence(

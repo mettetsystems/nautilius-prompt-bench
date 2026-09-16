@@ -7,6 +7,10 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from prompt_piper.setup.catalog import ModelTier
 
 
 @dataclass(frozen=True)

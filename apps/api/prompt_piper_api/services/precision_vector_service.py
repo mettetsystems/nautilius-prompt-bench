@@ -82,6 +82,7 @@ class PrecisionVectorService:
             self._embedding = EmbeddingService(
                 model_name=settings.prompt_piper_embedding_model,
                 prefer_fallback=settings.prompt_piper_embedding_fallback,
+                device="cpu",
             )
         return self._embedding
 

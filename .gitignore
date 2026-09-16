@@ -75,3 +75,6 @@ data/demo/registry/
 .env.hardware-*.bak
 data/model-source.json
 data/.model-source-*
+
+# Project-local inference runtime binaries
+/data/runtime/

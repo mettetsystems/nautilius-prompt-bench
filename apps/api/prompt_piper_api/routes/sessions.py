@@ -47,6 +47,7 @@ def get_session_service() -> SessionService:
         artifact_export = create_artifact_export_service(settings)
         _session_service = SessionService(
             llm=create_llm_client_from_env(),
+            precision_llm_factory=create_llm_client_from_env,
             registry=GitRegistryService(settings.registry_path),
             similarity=create_similarity_check_service(settings),
             optimizer=TokenOptimizationEngine(),
@@ -237,7 +238,9 @@ def suggest_precision_replacement(
     payload: PrecisionSuggestRequest,
     service: SessionService = Depends(get_session_service),
 ) -> PrecisionSuggestResponse:
-    result = service.suggest_precision_replacement(session_id, finding_id=payload.finding_id)
+    result = service.suggest_precision_replacement(
+        session_id, finding_id=payload.finding_id, use_llm=payload.use_llm,
+    )
     return PrecisionSuggestResponse.from_service(result)
 
 

@@ -22,6 +22,7 @@ class PrecisionReviewResponse(BaseModel):
 
 class PrecisionSuggestRequest(BaseModel):
     finding_id: str = Field(min_length=1)
+    use_llm: bool = True
 
 
 class ApplyPrecisionReplacementRequest(BaseModel):

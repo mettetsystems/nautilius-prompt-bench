@@ -70,6 +70,7 @@ def test_ensure_local_llm_uses_running_server(tmp_path: Path, monkeypatch: pytes
     monkeypatch.setattr("prompt_piper.setup.ensure_llm.repo_root", lambda: tmp_path)
     monkeypatch.setattr("prompt_piper.setup.ensure_llm.is_server_healthy", lambda *_args, **_kwargs: True)
 
+    monkeypatch.setattr("prompt_piper.setup.ensure_llm.probe_inference", lambda *_a, **_k: (True, "ready"))
     result = ensure_local_llm(env_path)
     assert result.mode == "already_running"
     assert result.llm_enabled is True
@@ -180,6 +181,7 @@ def test_ensure_local_llm_cpu_path_when_allowed(
     monkeypatch.setattr("prompt_piper.setup.ensure_llm.start_server", fake_start)
     monkeypatch.setattr("prompt_piper.setup.ensure_llm.wait_for_server", lambda *_a, **_k: True)
 
+    monkeypatch.setattr("prompt_piper.setup.ensure_llm.probe_inference", lambda *_a, **_k: (True, "ready"))
     result = ensure_local_llm(env_path)
     assert result.mode == "cpu"
     assert result.llm_enabled is True

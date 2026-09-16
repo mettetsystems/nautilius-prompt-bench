@@ -35,7 +35,7 @@ _UNSUPPORTED_JSON_MODE_MARKERS = (
 
 # Avoid a second GET /models on every Ask The Locals click when health was just ok.
 _HEALTH_CACHE_TTL_SECONDS = 10.0
-_health_cache: dict[str, tuple[float, HealthCheckResult]] = {}
+_health_cache: dict[object, tuple[float, HealthCheckResult]] = {}
 
 
 def clear_health_cache() -> None:
@@ -216,6 +216,20 @@ class LocalOpenAICompatibleClient:
         # Cache successes longer; still cache failures briefly to avoid hammering.
         ttl = _HEALTH_CACHE_TTL_SECONDS if result.ok else 2.0
         _health_cache[cache_key] = (now + ttl, result)
+        return result
+
+    def readiness_check(self) -> HealthCheckResult:
+        from prompt_piper.setup.readiness import probe_inference
+        # Include model and credentials: changing either requires a fresh probe.
+        cache_key = (self._base_url, self._settings.model_name, self._settings.api_key, "inference")
+        cached = _health_cache.get(cache_key)
+        if cached and time.monotonic() < cached[0]:
+            return cached[1]
+        ok, message = probe_inference(self._base_url, self._settings.model_name,
+                                      self._settings.api_key, timeout=self._timeout)
+        result = HealthCheckResult(ok=ok, provider=self.provider, message=message,
+                                   model_name=self._settings.model_name)
+        _health_cache[cache_key] = (time.monotonic() + (60 if ok else 2), result)
         return result
 
     def _chat_with_instruction_json(

@@ -332,3 +332,14 @@ def wait_for_server(
             return True
         time.sleep(poll_interval)
     return False
+
+
+def supports_gpu(binary: Path, vendor: str) -> bool:
+    """Check the actual inference backend, independently of PyTorch/driver detection."""
+    try:
+        result = subprocess.run([str(binary), "--list-devices"], capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    output = result.stdout.lower()
+    markers = ("cuda",) if vendor == "nvidia" else ("rocm", "hip")
+    return result.returncode == 0 and any(marker in output for marker in markers)

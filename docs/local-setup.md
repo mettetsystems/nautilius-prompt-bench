@@ -222,3 +222,26 @@ prompts remain on disk. Restart the app (`make dev-api`) to load it again.
 Externally hosted model servers must be stopped in their host application.
 
 See [clarification requirements and dedicated model setup](clarification.md) for the optional DeepSeek-R1-Distill-Qwen-32B assistant and editable answer expansions.
+
+See [hardware detection, tier recommendations, model sources, and quick rebuild](hardware-setup.md)
+for the GPU scan menu, Hugging Face token field, and importing GGUFs from a local repository.
+
+### Model readiness
+
+`make setup` now finishes by starting the configured local model and testing a real
+chat completion. `make dev-api` repeats this check before launching the API. If an
+enabled model is missing, cannot load, or cannot generate a completion, startup
+fails with a diagnostic instead of silently entering rule-based mode. Resolve the
+reported issue and rerun the command. Explicitly selected rule-based mode remains
+available without a model. Remote endpoints are verified but never launched locally.
+
+The UI's model health indicator also checks inference, with successful results
+cached for 60 seconds. A successful model-list response alone no longer means ready.
+
+For NVIDIA hardware, `LLAMA_SERVER` must point to a CUDA-enabled llama.cpp binary;
+a successful PyTorch embedding probe does not verify the chat server backend.
+Setup now checks `llama-server --list-devices` before launching a GPU model.
+Startup allows five minutes for the server to load and retries transient inference
+503s for up to five minutes. Invalid requests and credential failures are not retried.
+The installed project-local CUDA runtime is under `data/runtime/llama-b10988/`,
+with its binary selected by `LLAMA_SERVER` in `.env`.

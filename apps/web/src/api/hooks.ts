@@ -217,7 +217,8 @@ export function useApproveOptimization(sessionId: string) {
 
 export function useSuggestPrecisionReplacement(sessionId: string) {
   return useMutation({
-    mutationFn: (findingId: string) => suggestPrecisionReplacement(sessionId, findingId),
+    mutationFn: ({ findingId, useLlm }: { findingId: string; useLlm: boolean }) =>
+      suggestPrecisionReplacement(sessionId, findingId, useLlm),
   });
 }
 

@@ -28,7 +28,8 @@ if [[ -f "${ROOT}/.env" ]]; then
   source "${ROOT}/.env"
   set +a
 fi
-eval "$("${PYTHON}" -m prompt_piper.setup.ensure_llm --shell)"
+MODEL_ENV="$("${PYTHON}" -m prompt_piper.setup.ensure_llm --shell --strict)"
+eval "${MODEL_ENV}"
 # Watch API source only — not data/, logs, or models (reload would wipe in-memory sessions).
 exec "${VENV}/uvicorn" prompt_piper_api.main:app --reload \
   --reload-dir "${ROOT}/apps/api/prompt_piper_api" \

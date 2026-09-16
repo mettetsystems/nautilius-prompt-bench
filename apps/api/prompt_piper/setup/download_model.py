@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -19,8 +18,8 @@ class ModelDownloadPlan:
     target_path: Path
     preset: str | None
     cpu_only: bool
-    source_path: Path | None
     requires_auth_hint: bool
+    source_path: Path | None = None
 
 
 @dataclass(frozen=True)

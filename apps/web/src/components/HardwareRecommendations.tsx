@@ -28,7 +28,7 @@ export function HardwareRecommendations() {
       </li>)}</ul>
       <p><strong>{scan.data.remote_option.label}</strong> — {scan.data.remote_option.reason}</p>
       <p>{scan.data.note}</p>
-      <p>Select a local model with <code>make setup</code>. Configure a remote URL and model in the AI tooling override below. After changing hardware, run <code>./scripts/rebuild-hardware.sh</code>.</p>
+      <p>Select a local model or the Remote option with <code>make setup</code>. Remote setup works without a GPU; the AI tooling override below can then change its endpoint. After changing hardware, run <code>./scripts/rebuild-hardware.sh</code>.</p>
     </div>}
   </Panel>;
 }
