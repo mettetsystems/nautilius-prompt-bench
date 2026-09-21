@@ -19,8 +19,17 @@ class ApplicationRequirements(BaseModel):
     runtime: str = ""
     technology: str = ""
     development_environment: str = ""
+    build_isolation: str = ""
+    build_toolchain: str = ""
+    build_hardware: str = ""
+    build_access: str = ""
+    build_workspace: str = ""
+    environment_bootstrap: str = ""
+    validation_environment: str = ""
+    environment_parity: str = ""
     compatibility: str = ""
     delivery: str = ""
+    permissions: str = ""
     storage: str = ""
     connectivity: str = ""
     offline_sync: str = ""
@@ -109,11 +118,60 @@ APPLICATION_QUESTIONS = (
         "development_environment",
         "Development Environment",
         (
-            "What development machine, operating system, tools, and build "
-            "constraints matter? Keep these separate from target-system "
-            "requirements."
+            "On which machine will the long-horizon agent work: local workstation, "
+            "remote server, CI runner, or managed sandbox? Specify its OS/distribution "
+            "and version, CPU architecture, and shell. Describe the actual agent "
+            "environment separately from the finished application’s target system."
         ),
         [],
+    ),
+    _question(
+        'build_isolation',
+        'Build Isolation',
+        'Where should the agent execute builds: directly on the host, in a project virtual environment, container, VM, or remote builder? Specify the required tool (for example venv, Conda, Docker, Podman, or Nix) and image or configuration version.',
+        ['Project virtual environment', 'Containerized build', 'Native host build', 'VM or remote builder'],
+    ),
+    _question(
+        'build_toolchain',
+        'Build Toolchain',
+        'Which compiler, SDK, language runtime, package manager, and exact versions must the agent use to build the project? Identify lockfiles or version files that are authoritative, and whether changing them is allowed.',
+        [],
+    ),
+    _question(
+        'build_hardware',
+        'Build Hardware and Accelerators',
+        'What CPU architecture, RAM, disk space, and GPU are available to the agent? If GPU acceleration is required, specify driver and CUDA/ROCm versions and how the actual build or inference backend must be verified. Say when CPU fallback is acceptable.',
+        ['CPU only', 'GPU required; no silent CPU fallback', 'GPU preferred; CPU fallback allowed'],
+    ),
+    _question(
+        'build_access',
+        'Build Network and Dependency Access',
+        'Can the build environment access the internet, package registries, and model repositories? Specify offline caches, mirrors, proxies, and how credentials are provided. Name secret variables or credential stores; do not paste secret values.',
+        ['Online dependency access', 'Approved mirrors only', 'Offline; use local dependencies'],
+    ),
+    _question(
+        'build_workspace',
+        'Agent Workspace and Persistence',
+        'What repository path and working directory should the agent use? Which paths are writable, where should build artifacts and caches go, and what survives restarts or context resets? Identify shared directories the agent must preserve.',
+        [],
+    ),
+    _question(
+        'environment_bootstrap',
+        'Environment Setup and Recovery',
+        'How should the agent reproduce the environment from a clean machine or checkout? Specify setup and preflight commands, permitted environment changes, and recovery steps if dependencies or hardware differ.',
+        ['Use existing setup scripts; report missing prerequisites', 'Create a reproducible setup script', 'Use a pinned container or environment definition'],
+    ),
+    _question(
+        'validation_environment',
+        'Validation Environment',
+        'Where must builds and tests be verified: the agent machine, a matching container or VM, CI, staging, or target hardware? Give test commands, required services and fixtures, and checks that cannot run locally.',
+        ['Local and CI validation', 'Matching container or VM', 'Target hardware validation'],
+    ),
+    _question(
+        'environment_parity',
+        'Build and Target Differences',
+        'How does the build environment differ from deployment or production (OS, CPU architecture, runtime versions, GPU backend, services, paths, or permissions)? Specify cross-compilation needs and which differences must be tested before completion.',
+        ['Build and target environments match', 'Build and target differ; specify differences'],
     ),
     _question(
         "compatibility",
@@ -129,6 +187,21 @@ APPLICATION_QUESTIONS = (
         "Installation and Updates",
         "What installation, packaging, deployment, and update process is expected?",
         [],
+    ),
+    _question(
+        "permissions",
+        "Project Permissions",
+        (
+            "What permission scope does this project require: standard user permissions "
+            "or elevated administrator/root access (sudo)? Distinguish development, "
+            "installation and updates, and normal runtime. If elevation is needed, "
+            "specify which operations require it and how approval should be obtained."
+        ),
+        [
+            "Standard user permissions only; no sudo",
+            "Sudo for installation and updates only; run as a standard user",
+            "Sudo required for specific runtime operations; specify operations and approval",
+        ],
     ),
     _question(
         "storage",
@@ -221,6 +294,10 @@ def material_open_decisions(card: "RequirementCard") -> list[str]:
         "hosting",
         "runtime",
         "technology",
+        "development_environment",
+        "build_isolation",
+        "build_toolchain",
+        "validation_environment",
         "compatibility",
         "acceptance",
     }

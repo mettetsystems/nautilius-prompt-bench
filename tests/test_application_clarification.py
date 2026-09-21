@@ -244,3 +244,46 @@ def test_deepseek_uses_user_message_and_failure_stays_manual():
     )
     assert not result.model_available
     assert result.original_answer == "Manual Python requirement"
+
+
+def test_project_permissions_question_and_exports():
+    from prompt_piper_api.domain.application_requirements import APPLICATION_QUESTIONS
+    card = RequirementCard()
+    field = PREFIX + "permissions"
+    assert field in ClarificationQuestionRanker().missing_fields(card)
+    question = next(q for q in APPLICATION_QUESTIONS if q.field_name == field)
+    assert "sudo" in question.standard_prompt
+    answer = "Sudo for installation and updates only; run as a standard user"
+    RequirementCardExtractor().apply_answer(card, field, answer)
+    assert card.get_leaf(field) == answer
+    assert f"Project Permissions: {answer}" in build_harness_body(card)
+    assert card.coding_spec_dict()["application_requirements"]["permissions"] == answer
+    assert RequirementCard.model_validate({}).application_requirements.permissions == ""
+
+
+@pytest.mark.parametrize('name', [
+    'build_isolation', 'build_toolchain', 'build_hardware', 'build_access',
+    'build_workspace', 'environment_bootstrap', 'validation_environment', 'environment_parity',
+])
+def test_agent_environment_questions_roundtrip(name):
+    card = RequirementCard()
+    field = PREFIX + name
+    ranker = ClarificationQuestionRanker()
+    assert field in ranker.missing_fields(card)
+    question = ranker.build_question(field, question_number=1)
+    assert question.prompt and question.quick_reply_options[-1] == 'unspecified'
+    answer = 'Project-specific environment constraint for ' + name
+    RequirementCardExtractor().apply_answer(card, field, answer)
+    assert answer in build_harness_body(card)
+    assert card.coding_spec_dict()['application_requirements'][name] == answer
+    assert RequirementCard.model_validate(card.model_dump()).get_leaf(field) == answer
+    assert RequirementCard.model_validate({}).get_leaf(field) == ''
+
+
+def test_build_environment_does_not_infer_target_environment():
+    card = RequirementCard()
+    RequirementCardExtractor().apply_answer(card, PREFIX + 'development_environment', 'Fedora 44, x86_64, bash')
+    RequirementCardExtractor().apply_answer(card, PREFIX + 'build_toolchain', 'Python 3.12 in venv')
+    assert card.application_requirements.operating_systems == ''
+    assert card.application_requirements.runtime == ''
+    assert PREFIX + 'validation_environment' in material_open_decisions(card)

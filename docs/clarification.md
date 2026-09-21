@@ -124,3 +124,15 @@ and a 4,096-token generation budget. For DeepSeek R1 it places instructions in
 the user message, following the model card guidance. It uses the existing OpenAI-compatible
 adapter and JSON parsing/fallback path. Unreachable endpoints, malformed output,
 and timeout failures offer manual clarification rather than applying a guess.
+
+### Agent build environments
+
+Environment intake separates the agent's actual machine (OS/version, architecture,
+location and shell) from the application's target. Follow-up questions cover build
+isolation, versioned toolchains, hardware and GPU backends, network/dependency
+access, workspace persistence, reproducible setup and recovery, validation
+infrastructure, and differences between build and deployment environments.
+Project Permissions records user/sudo requirements separately. Credential questions
+ask for secret variable or store names, never secret values. Each answer is retained
+in the requirement card and generated prompt/spec exports. Unknown answers remain
+explicit; old sessions receive empty defaults for the new fields.
