@@ -37,6 +37,16 @@ Each top-level folder has a **README** describing its files and how they fit tog
 | [`demo/`](demo/README.md) | Demo scenario fixtures | `make demo` input |
 | `~/Documents/Nautilius` | Host export root (registry, exports, audit) | production-style paths on Fedora |
 
+## MacBook Air M3 / macOS Tahoe
+
+For a native Apple Silicon installation with Metal acceleration and a light local
+model tuned for 16 GB unified memory, follow the [Mac installation guide](docs/macos-install.md).
+
+```bash
+bash scripts/install-macos.sh
+bash scripts/start-macos.sh
+```
+
 ## Quick start (native dev)
 
 **Prerequisites:** Python 3.12+, Node.js 20+, Make  

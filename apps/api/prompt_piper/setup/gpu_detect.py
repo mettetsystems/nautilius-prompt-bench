@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import platform
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -20,6 +21,8 @@ class GpuInfo:
     vram_mb: int | None = None
     free_vram_mb: int | None = None
     device_id: str | None = None
+    # Shared-memory planning allowance, not measured free/dedicated VRAM.
+    memory_budget_mb: int | None = None
 
 
 def _number(value: str) -> int | None:
@@ -38,7 +41,19 @@ def _run(command: list[str]) -> str:
 
 
 def detect_gpus() -> list[GpuInfo]:
-    """Inventory usable NVIDIA/ROCm devices. Unknown memory is never treated as free VRAM."""
+    """Inventory NVIDIA/ROCm and native Apple Silicon devices."""
+    if platform.system() == "Darwin" and platform.machine() == "arm64":
+        total_bytes = _number(_run(["sysctl", "-n", "hw.memsize"]).strip())
+        total_mb = total_bytes // 1048576 if total_bytes else None
+        name = _run(["sysctl", "-n", "machdep.cpu.brand_string"]).strip() or "Apple Silicon"
+        return [
+            GpuInfo(
+                "apple",
+                name,
+                total_mb,
+                memory_budget_mb=total_mb // 2 if total_mb else 2048,
+            )
+        ]
     devices = []
     if shutil.which("nvidia-smi"):
         output = _run(

@@ -131,6 +131,7 @@ def find_llama_server() -> Path | None:
     for candidate in (
         Path("/usr/bin/llama-server"),
         Path("/usr/local/bin/llama-server"),
+        Path("/opt/homebrew/bin/llama-server"),
         Path.home() / ".local" / "bin" / "llama-server",
     ):
         if candidate.is_file() and os.access(candidate, os.X_OK):
@@ -198,7 +199,10 @@ def build_server_config(
 ) -> LlamaServerConfig:
     tuned_ctx, tuned_ngl = tune_llama_resources(
         vram_mb=None if gpu is None else gpu.vram_mb,
-        free_vram_mb=None if gpu is None else gpu.free_vram_mb,
+        free_vram_mb=(
+            None if gpu is None else
+            gpu.memory_budget_mb if gpu.memory_budget_mb is not None else gpu.free_vram_mb
+        ),
         model_path=model_path,
         cpu_only=cpu_only or gpu is None,
     )
@@ -341,5 +345,5 @@ def supports_gpu(binary: Path, vendor: str) -> bool:
     except (OSError, subprocess.TimeoutExpired):
         return False
     output = result.stdout.lower()
-    markers = ("cuda",) if vendor == "nvidia" else ("rocm", "hip")
+    markers = {"nvidia": ("cuda",), "amd": ("rocm", "hip"), "apple": ("metal",)}.get(vendor, ())
     return result.returncode == 0 and any(marker in output for marker in markers)

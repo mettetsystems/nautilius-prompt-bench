@@ -125,8 +125,8 @@ def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
             mode="cpu_only",
             llm_enabled=False,
             message=(
-                "No compatible GPU detected (CUDA/ROCm). Using rule-based CPU mode. "
-                "Install NVIDIA or AMD GPU drivers to enable the local SLM, or set "
+                "No compatible GPU detected (CUDA/ROCm/Apple Metal). Using rule-based CPU mode. "
+                "Use native Apple Silicon or install NVIDIA/AMD drivers, or set "
                 "PROMPT_PIPER_ALLOW_CPU_LLM=true to run llama.cpp on CPU."
             ),
         )
@@ -171,8 +171,9 @@ def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
     if not cpu_only:
         from prompt_piper.setup.llama_launcher import supports_gpu
         if not supports_gpu(binary, gpu.vendor):
+            os.environ["PROMPT_PIPER_LLM_ENABLED"] = "false"
             return EnsureLlmResult("cpu_only", False,
-                f"{binary} cannot use the detected {gpu.vendor} GPU. Install a matching CUDA/ROCm build and runtime libraries; set LLAMA_SERVER to that binary.")
+                f"{binary} cannot use the detected {gpu.vendor} GPU. Install a matching CUDA/ROCm/Metal build and runtime libraries; set LLAMA_SERVER to that binary.")
 
     managed_pid = read_managed_pid()
     if managed_pid is not None:
