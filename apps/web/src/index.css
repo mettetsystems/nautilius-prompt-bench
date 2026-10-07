@@ -156,7 +156,7 @@ code {
 
 .brand-logo {
   display: block;
-  height: 4rem;
+  height: 8rem;
   width: auto;
   max-width: min(360px, 55vw);
 }

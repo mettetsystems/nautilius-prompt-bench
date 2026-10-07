@@ -2,7 +2,10 @@
 
 | File | Used for |
 |------|----------|
-| `logo.png` | Header wordmark in `AppLayout.tsx` |
-| `logo-mark.png` | Favicon and compact icon |
+| `logo.png` | Full Nautilus Long Horizon emblem in `AppLayout.tsx` and the repository README |
+| `logo-mark.png` | Same emblem used for the browser favicon |
 
-Raster wordmark and mark. Keep files small; the previous Inkscape SVG wrappers embedded full-size PNGs and crashed the browser.
+Both files are unchanged copies of the supplied `Nautilus Long Horizon Emblem.png`.
+The artwork includes the Nautilus name, Long Horizon Prompting Workbench subtitle,
+and “Plan • Process • Produce” tagline. Use the PNG directly rather than embedding
+it in an SVG wrapper.
