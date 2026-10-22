@@ -287,27 +287,5 @@ def applicable_application_fields(card: "RequirementCard") -> tuple[str, ...]:
 
 
 def material_open_decisions(card: "RequirementCard") -> list[str]:
-    critical = {
-        "project_context",
-        "target_environment",
-        "operating_systems",
-        "hosting",
-        "runtime",
-        "technology",
-        "development_environment",
-        "build_isolation",
-        "build_toolchain",
-        "validation_environment",
-        "compatibility",
-        "acceptance",
-    }
-    return [
-        f
-        for f in applicable_application_fields(card)
-        if f.split(".")[1] in critical
-        and (
-            not card.get_leaf(f).strip()
-            or card.get_leaf(f).casefold().strip()
-            in {"unsure", "unknown", "not sure", "unspecified", "skip"}
-        )
-    ]
+    from prompt_piper_api.domain.consultation import open_architectural_decisions
+    return open_architectural_decisions(card)

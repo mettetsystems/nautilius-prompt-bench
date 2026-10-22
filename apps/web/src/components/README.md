@@ -10,7 +10,7 @@ Shared React UI used across workflow pages.
 | `WorkflowReopenActions.tsx` | Re-open edit / re-run similarity or optimization |
 | `SessionClosedBanner.tsx` | Completed session is immutable |
 | `SessionTemplateButton.tsx` | Create new session from completed template |
-| `RequirementCardPanel.tsx` | Sidebar task-identity + 16-question agent contract |
+| `RequirementCardPanel.tsx` | Sidebar accepted task, application, and explicit execution requirements |
 | `ClarificationQuestionPanel.tsx` | Shared clarify / edit unresolved Q&A panel |
 | `StatusBadge.tsx` | Session state badge |
 | `ui.tsx` | `PageHeader`, `Panel`, `ErrorBanner`, `LoadingState`, … |

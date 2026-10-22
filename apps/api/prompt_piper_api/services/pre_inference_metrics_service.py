@@ -3,17 +3,19 @@ from __future__ import annotations
 import re
 
 from prompt_piper_api.config import get_settings
+from prompt_piper_api.domain.consultation import UNKNOWN_ANSWERS
 from prompt_piper_api.domain.optimization import OptimizationResult
 from prompt_piper_api.domain.pre_inference_metrics import PreInferenceMetrics
 from prompt_piper_api.domain.requirement_card import RequirementCard
+from prompt_piper_api.services.contract_resolver import resolve_contract
 from prompt_piper_api.services.draft_generator import UNSPECIFIED
 from prompt_piper_api.services.embedding_service import EmbeddingService
+from prompt_piper_api.services.first_shot_readiness import assess_first_shot_readiness
 from prompt_piper_api.services.format_checker import (
     coding_section_coverage,
     format_adherence_score,
     harness_section_coverage,
 )
-from prompt_piper_api.services.first_shot_readiness import assess_first_shot_readiness
 from prompt_piper_api.services.optimization.constraint_graph_pass import ConstraintGraphPass
 from prompt_piper_api.services.optimization.metrics import OptimizationMetricsCalculator
 from prompt_piper_api.services.requirement_capture import RequirementCaptureEvaluator
@@ -80,9 +82,7 @@ class PreInferenceMetricsService:
             else ConstraintGraphPass().run(body, card)
         )
         hard_conflicts = (
-            optimization.hard_conflicts
-            if optimization is not None
-            else graph.contradictions
+            optimization.hard_conflicts if optimization is not None else graph.contradictions
         )
 
         if optimization is not None:
@@ -128,10 +128,11 @@ class PreInferenceMetricsService:
         )
 
     def _unspecified_field_honesty(self, body: str, card: RequirementCard) -> float:
-        if not card.unresolved_fields:
+        unresolved = resolve_contract(card).unresolved_fields
+        if not unresolved:
             return 1.0
 
-        for field_name in card.unresolved_fields:
+        for field_name in unresolved:
             if not self._field_marked_unspecified(body, card, field_name):
                 return 0.0
         return 1.0
@@ -150,9 +151,17 @@ class PreInferenceMetricsService:
             if isinstance(value, list):
                 if value:
                     return True
-            elif isinstance(value, str) and value.strip():
+            elif isinstance(value, str) and value.strip().casefold() not in UNKNOWN_ANSWERS | {
+                "recommend an option"
+            }:
                 return True
 
+        if re.search(
+            rf"Open architectural decision: {re.escape(field_name)}[^\n]*\bunspecified\b",
+            body,
+            re.IGNORECASE,
+        ):
+            return True
         hints = _FIELD_SECTION_HINTS.get(
             field_name,
             (field_name.split(".")[-1].replace("_", " "),),
@@ -163,8 +172,6 @@ class PreInferenceMetricsService:
                 re.IGNORECASE,
             )
             if pattern.search(body):
-                return True
-            if re.search(rf"\b{re.escape(UNSPECIFIED)}\b", body, re.I) and hint in body.lower():
                 return True
         return False
 

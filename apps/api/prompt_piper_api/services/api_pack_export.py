@@ -10,7 +10,6 @@ from prompt_piper_api.domain.requirement_card import RequirementCard
 from prompt_piper_api.services.harness_prompt_builder import (
     build_harness_body,
     build_harness_spec,
-    harness_markdown,
 )
 
 
@@ -92,11 +91,21 @@ def build_api_pack(
     title: str = "Coding harness prompt",
 ) -> dict[str, Any]:
     """Return filename → text/json payload for the hybrid six-format export pack."""
-    body = harness_body or build_harness_body(card)
+    canonical = build_harness_body(card)
+    # An optional optimized body may add presentation text, but may not drop the
+    # resolved execution instructions or accepted requirements.
+    required_lines = [
+        line for line in canonical.splitlines() if line.strip() and set(line) != {"-"}
+    ]
+    body = (
+        harness_body
+        if harness_body and all(line in harness_body for line in required_lines)
+        else canonical
+    )
     system = HARNESS_SYSTEM_PROMPT
     pack: dict[str, Any] = {
         "harness_prompt.txt": body,
-        "harness_prompt.md": harness_markdown(card, title=title),
+        "harness_prompt.md": f"# {title}\n\n```text\n{body}\n```\n",
         "coding_harness_spec.json": build_harness_spec(card),
         "api_pack/README.md": _pack_readme(),
     }

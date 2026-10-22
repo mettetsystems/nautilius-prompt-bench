@@ -1,6 +1,6 @@
 # Architecture
 
-Nautilius Prompting Workbench is a **local-first long-horizon coding-agent prompting workbench**. It helps you turn a coding task into a 16-question operational contract, draft the prompt, review similarity to prior work, optimize for **clarity** (not token cost), export structured specs plus rendered prompts, and store them in a local file registry—all on your machine.
+Nautilius Prompting Workbench is a **local-first long-horizon coding-agent prompting workbench**. It helps you turn architectural requirements into a complete long-horizon execution contract, draft the prompt, review similarity to prior work, optimize for **clarity** (not token cost), export structured specs plus rendered prompts, and store them in a local file registry—all on your machine.
 
 It is **not** an autonomous agent platform. There is no background task runner, no tool-use loop, and no implicit model calls. Every stage is user-initiated and state-gated.
 
@@ -82,7 +82,7 @@ After finalization the canonical draft is **frozen** (`is_frozen=True`). Edits a
 
 `prompt_id` is assigned at finalize: `{slug-from-title}-{first-8-chars-of-session-uuid}` via `build_prompt_id()`.
 
-## RequirementCard (task identity + 16-question agent contract)
+## RequirementCard (task identity, application requirements, and execution policies)
 
 The RequirementCard (`apps/api/prompt_piper_api/domain/requirement_card.py`) is the structured source of truth for a long-horizon coding-agent prompt. It is populated incrementally:
 
@@ -210,3 +210,13 @@ docs/               This documentation
 - [Registry format](registry-format.md)
 - [Privacy model](privacy-model.md)
 - [Local setup](local-setup.md)
+
+## Architecture consultation and execution contracts
+
+The interview addresses a CTO or Principal Architect through a senior freelance developer persona. It captures outcomes, system boundaries, constraints, compatibility, data, integrations, security, delivery, and acceptance. Routine tooling and agent mechanics are delegated to the receiving agent.
+
+`domain/consultation.py` defines question priority and architectural gaps. The ranker uses the configured AI tooling model once when selecting a new question; it stores the validated question on the session and falls back to an architectural template on errors. Reads and ranking never generate questions. Old technical queues are reconciled lazily without changing accepted answers or saved drafts.
+
+`services/contract_resolver.py` compiles an effective requirement card without modifying the accepted source card. Explicit requirements take precedence over labeled workbench defaults. Delegated implementation instructions require repository and environment discovery, compatible tool selection, reproducible setup, and verification. Material architectural gaps remain unresolved. All sixteen execution-policy sections remain in the output, even though they are no longer a mandatory questionnaire. Drafts compile deterministically so model rewrites cannot discard operational rules.
+
+Drafts, optimization, structured exports, API packs, and readiness checks use this resolved contract. `requirement_card.json` remains the accepted source. Exported coding specs retain existing fields and add `decision_sources` metadata; harness specs retain `source_card` and add `resolved_card`. Recommendations do not become accepted requirements until submitted.

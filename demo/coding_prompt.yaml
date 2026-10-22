@@ -3,8 +3,8 @@ initial_request: >
   I need a long-horizon coding-agent prompt that helps an AI implement a FastAPI + Pydantic feature:
   a POST /users endpoint that validates input and returns the created user.
 clarification_answers:
-  - "Recommended: evidence-based COMPLETE / PARTIAL / BLOCKED / FAILED"
-  - "Recommended: minimum necessary change"
+  - "Existing codebase"
+  - "Clients can create a user with validated input; invalid requests are rejected and behavior is demonstrated by acceptance tests"
 edit_instructions:
   - "Add constraint: sanitize email input against injection and keep responses concise"
   - "Change output contract to TypeScript-style interface plus FastAPI handler with pytest"

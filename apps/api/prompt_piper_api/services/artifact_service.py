@@ -306,7 +306,8 @@ class ArtifactService:
             "json",
             requirement_card.model_dump_json(indent=2),
         )
-        coding_spec = requirement_card.coding_spec_dict()
+        from prompt_piper_api.services.contract_resolver import resolve_contract
+        coding_spec = resolve_contract(requirement_card).coding_spec_dict()
         write_text(
             "coding_prompt_spec.json",
             "json",

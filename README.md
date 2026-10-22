@@ -6,11 +6,11 @@ Local-first **long-horizon coding-agent** prompting workbench. Design, clarify, 
 
 ### Workflow highlights
 
-- **16-question agent contract** — definition of done, change scope, architecture, discovery, execution, validation, failure recovery, autonomy, persistent `.agent/` memory, completion evidence, budget, tool safety, context compaction, rollback, escalation, and dependency security. Conservative defaults are one click away.
+- **Complete agent contract** — definition of done, change scope, architecture, discovery, execution, validation, failure recovery, autonomy, persistent `.agent/` memory, completion evidence, budget, tool safety, context compaction, rollback, escalation, and dependency security. Architectural answers are combined with labeled execution defaults and bounded implementation delegation.
 - **Clarity-first optimization** — expand and deconflict operational rules instead of compressing for token cost. Long-horizon prompts are expected to be large.
 - **Dual export** — rendered `canonical_prompt` / `optimized_prompt` plus structured `coding_prompt_spec.json` and `.yaml`.
 - **Persistent sessions** — progress survives browser refresh and API restarts (`SESSIONS_PATH`, default `./data/sessions/`). **Breaking schema note:** clear `./data/sessions/` after upgrading from the old six-dimension card format.
-- **Rich clarification** — multi-select quick replies plus custom text; optional **Get model suggestions** per question (CPU-fast ranker by default).
+- **Architecture consultation** — a senior-developer interview for a CTO or Principal Architect, with automatically tailored questions, offline templates, quick replies, and optional model recommendations. Tooling choices are delegated within accepted constraints.
 - **Step navigation** — revisit earlier steps from the workflow stepper; **re-open** edit, similarity, or optimization when you need to change course mid-session.
 - **Closed completed sessions** — exported sessions are read-only for audit; start a new session with **Use as template** from the Complete page.
 - **Binding-aware approval** — the pre-inference gate scores optimized prompts against constraint-graph bindings (not every optional card field), and the optimizer preserves those bindings while expanding for clarity.
@@ -272,7 +272,7 @@ podman build -f infra/Containerfile.web -t prompt-piper-web .
 
 ## Local model endpoint setup
 
-Nautilius Prompting Workbench talks to an **OpenAI-compatible** server for clarification suggestions, draft generation, and optional chat. Clarification **ranking and extraction stay CPU-fast** unless you click **Get model suggestions** or your setup wizard enabled a local model.
+Nautilius Prompting Workbench talks to an **OpenAI-compatible** server for clarification suggestions, draft generation, and optional chat. Clarification selection is deterministic. When AI assistance is enabled, the configured tooling model tailors each newly selected architectural question; unavailable or invalid responses fall back to predefined questions. Refreshing a pending question does not query the model. **Get model suggestions** and **Ask The Locals** remain optional.
 
 `make dev-api` runs `ensure_llm`: it detects GPU memory, can start `llama-server` with a configured GGUF, or falls back to CPU-only mode (rule-based clarification). Stop a managed server with `make llama-down`, or stop the whole local app with `make shutdown`.
 

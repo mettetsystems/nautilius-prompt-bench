@@ -262,7 +262,7 @@ export function ClarificationQuestionPanel({
 
   const defaultHelp = readOnly
     ? "Review the requirement card for answers captured during clarification."
-    : "Pick quick replies and/or add custom text, then submit. Expand Beginner for option guides, or Ask The Locals for a contextual recommendation under your custom answer.";
+    : "Describe the architectural requirements and approval boundaries. The receiving coding agent will choose implementation tools within them. Questions adapt when AI assistance is enabled; quick replies and custom answers also work offline.";
 
   return (
     <Panel

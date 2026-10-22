@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from prompt_piper_api.domain.requirement_card import RequirementCard
 from prompt_piper_api.services.clarification_question_ranker import is_unspecified_answer
+from prompt_piper_api.services.contract_resolver import resolve_contract
 
 CRITICAL_CONTRACT_FIELDS: tuple[str, ...] = (
     "agent_contract.definition_of_done",
@@ -53,6 +54,8 @@ def _leaf_populated(card: RequirementCard, field_name: str) -> bool:
 
 def assess_first_shot_readiness(card: RequirementCard) -> FirstShotReadiness:
     """Return soft readiness risks for long-horizon coding-agent contracts."""
+    resolved = resolve_contract(card)
+    card = resolved.card
     risks: list[FirstShotRisk] = []
     checklist: list[str] = []
     checks_passed = 0
@@ -113,9 +116,17 @@ def assess_first_shot_readiness(card: RequirementCard) -> FirstShotReadiness:
     check(
         _leaf_populated(card, "agent_contract.persistent_memory"),
         "missing_persistent_memory",
-        "Persistent .agent/ memory policy is set",
+        "Durable progress and handoff policy is set",
         field_name="agent_contract.persistent_memory",
     )
+
+    for field_name in resolved.unresolved_fields:
+        check(
+            False,
+            "missing_architectural_requirement",
+            f"Architectural requirement remains open: {field_name}",
+            field_name=field_name,
+        )
 
     score = round(checks_passed / checks_total, 2) if checks_total else 1.0
     return FirstShotReadiness(

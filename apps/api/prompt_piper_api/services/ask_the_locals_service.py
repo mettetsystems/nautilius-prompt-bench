@@ -7,6 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from prompt_piper_api.domain.consultation import CONSULTANT_PERSONA
 from prompt_piper_api.domain.requirement_card import LEAF_FIELD_NAMES, RequirementCard
 from prompt_piper_api.llm.base import ChatMessage, LLMClient, LLMError
 from prompt_piper_api.services.clarification_option_guides import build_quick_reply_guides
@@ -107,9 +108,7 @@ class AskTheLocalsService:
         try:
             health = self._llm.health_check()
         except Exception as exc:  # noqa: BLE001 — surface probe failures to the UI
-            return unavailable(
-                f"Ask The Locals could not reach the model endpoint: {exc}"
-            )
+            return unavailable(f"Ask The Locals could not reach the model endpoint: {exc}")
         if not health.ok:
             return unavailable(
                 "Ask The Locals could not reach the model endpoint "
@@ -136,9 +135,7 @@ class AskTheLocalsService:
             )
         except Exception as exc:  # noqa: BLE001
             detail = str(exc).strip() or exc.__class__.__name__
-            return unavailable(
-                f"Ask The Locals failed unexpectedly ({detail[:240]})."
-            )
+            return unavailable(f"Ask The Locals failed unexpectedly ({detail[:240]}).")
 
     def _ask_with_llm(
         self,
@@ -165,12 +162,13 @@ class AskTheLocalsService:
             [
                 ChatMessage(
                     role="system",
-                    content=(
-                        "Answer one clarification field for a coding prompt. "
-                        "Stay consistent with previous_answers. Do not invent project facts. "
-                        "Return JSON only with key recommended_answer. "
-                        "recommended_answer must be between 1 word and 1 sentence "
-                        "(paste-ready; no quotes, no explanation, no markdown)."
+                    content=CONSULTANT_PERSONA
+                    + (
+                        "Recommend a requirement-level answer for one clarification field for"
+                        " a coding prompt. Stay consistent with previous_answers. Do not "
+                        "invent project facts. Return JSON only with key recommended_answer. "
+                        "recommended_answer must be between 1 word and 1 sentence (paste-"
+                        "ready; no quotes, no explanation, no markdown)."
                     ),
                 ),
                 ChatMessage(role="user", content=json.dumps(context)),
@@ -186,8 +184,8 @@ class AskTheLocalsService:
                 or ""
             )
         )
-        if not recommended_answer and option_guides:
-            recommended_answer = str(option_guides[0].get("option", "")).strip()
+        if not recommended_answer:
+            raise ValueError("Model returned no recommendation")
 
         return AskTheLocalsInsight(
             field_name=field_name,
@@ -197,8 +195,6 @@ class AskTheLocalsService:
             model_available=True,
             model_source=model_source,
             message=(
-                "Short recommendation ready."
-                if previous_answers
-                else "Local recommendation ready."
+                "Short recommendation ready." if previous_answers else "Local recommendation ready."
             ),
         )

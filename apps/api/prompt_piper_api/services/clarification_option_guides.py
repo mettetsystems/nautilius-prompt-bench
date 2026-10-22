@@ -21,11 +21,33 @@ class QuickReplyGuide(BaseModel):
 
 def build_quick_reply_guides(field_name: str) -> list[QuickReplyGuide]:
     """Build beginner guides aligned to the field's quick-reply options."""
+    from prompt_piper_api.domain.consultation import CONSULTATION_TOPICS, SPECIAL_REPLIES
+
+    topic = CONSULTATION_TOPICS.get(field_name)
+    if topic:
+        return [
+            QuickReplyGuide(
+                option=option,
+                explanation=topic.rationale,
+                when_to_use="Choose only if it matches your requirements; custom text is welcome.",
+            )
+            for option in (*topic.choices, *SPECIAL_REPLIES)
+        ]
     from prompt_piper_api.domain.application_requirements import APPLICATION_QUESTIONS
+
     question = next((q for q in APPLICATION_QUESTIONS if q.field_name == field_name), None)
     if question:
-        return [QuickReplyGuide(option=o.label, explanation=o.explanation, when_to_use=o.when_to_use) for o in question.options]
-    options = (*quick_reply_labels(field_name)[:-1], "Unsure", "Not applicable", "Recommend an option", "unspecified")
+        return [
+            QuickReplyGuide(option=o.label, explanation=o.explanation, when_to_use=o.when_to_use)
+            for o in question.options
+        ]
+    options = (
+        *quick_reply_labels(field_name)[:-1],
+        "Unsure",
+        "Not applicable",
+        "Recommend an option",
+        "unspecified",
+    )
     text_by_option = beginner_option_text(field_name)
     guides: list[QuickReplyGuide] = []
     for option in options:

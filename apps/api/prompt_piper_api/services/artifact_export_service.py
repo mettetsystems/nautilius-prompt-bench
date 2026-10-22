@@ -25,12 +25,12 @@ from prompt_piper_api.domain.pre_inference_metrics import PreInferenceMetrics
 from prompt_piper_api.domain.registry import RegistryMetadata
 from prompt_piper_api.domain.requirement_card import RequirementCard
 from prompt_piper_api.domain.similarity import SimilarityCheckResult
+from prompt_piper_api.services.api_pack_export import build_api_pack, dumps_pack_value
 from prompt_piper_api.services.artifact_service import (
     ArtifactService,
     pandoc_available,
     weasyprint_available,
 )
-from prompt_piper_api.services.api_pack_export import build_api_pack, dumps_pack_value
 from prompt_piper_api.services.exceptions import InvalidPathError
 from prompt_piper_api.services.harness_prompt_builder import build_harness_body
 from prompt_piper_api.services.path_safety import safe_child_path, validate_prompt_id
@@ -550,7 +550,8 @@ class ArtifactExportService:
             requirement_card,
             state=state,
         )
-        coding_spec = requirement_card.coding_spec_dict()
+        from prompt_piper_api.services.contract_resolver import resolve_contract
+        coding_spec = resolve_contract(requirement_card).coding_spec_dict()
         self.write_json_artifact(
             export_dir,
             "coding_prompt_spec.json",

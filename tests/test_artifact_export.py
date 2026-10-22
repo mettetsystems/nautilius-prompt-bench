@@ -269,3 +269,34 @@ def test_build_export_folder_name_format() -> None:
 def test_no_proprietary_cloud_required_for_export_tests() -> None:
     assert pandoc_available() in {True, False}
     assert weasyprint_available() in {True, False}
+
+
+def test_architectural_export_keeps_source_and_compiles_machine_specs(tmp_path: Path) -> None:
+    import yaml
+    from prompt_piper_api.services.harness_prompt_builder import build_harness_body
+
+    from tests.card_fixtures import architecture_card
+
+    card = architecture_card()
+    source = card.model_dump()
+    result = build_test_export_service(tmp_path).export(
+        prompt_id=build_prompt_id("Order tracking", uuid4()),
+        version=1,
+        title="Order tracking",
+        canonical_body=build_harness_body(card),
+        optimized_body=None,
+        requirement_card=card,
+        registry_metadata=None,
+        optimization_result=None,
+        pre_inference_metrics=None,
+        similarity_result=None,
+        include_pdf=False,
+    )
+    root = Path(result.container_export_path)
+    assert json.loads((root / "requirement_card.json").read_text()) == source
+    spec = json.loads((root / "coding_prompt_spec.json").read_text())
+    assert spec == yaml.safe_load((root / "coding_prompt_spec.yaml").read_text())
+    assert spec["agent_contract"]["resource_budget"]
+    assert spec["decision_sources"]["agent_contract.resource_budget"] == "default"
+    assert spec["decision_sources"]["application_requirements.build_toolchain"] == "delegated"
+    assert card.model_dump() == source

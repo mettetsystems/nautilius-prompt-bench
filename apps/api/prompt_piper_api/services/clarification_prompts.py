@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from prompt_piper_api.domain.agent_contract import CONTRACT_QUESTIONS
 from prompt_piper_api.domain.application_requirements import APPLICATION_QUESTIONS
+from prompt_piper_api.domain.consultation import CONSULTATION_TOPICS
 
 
 class ClarificationLevel(StrEnum):
@@ -50,6 +51,11 @@ BEGINNER_PROMPTS: dict[str, tuple[str, str]] = {
 ADVANCED_PROMPTS: dict[str, str] = {
     question.field_name: question.advanced_prompt for question in ALL_QUESTIONS
 }
+
+for field_name, topic in CONSULTATION_TOPICS.items():
+    STANDARD_PROMPTS[field_name] = topic.prompt
+    BEGINNER_PROMPTS[field_name] = (topic.prompt, topic.rationale)
+    ADVANCED_PROMPTS[field_name] = topic.prompt
 
 FOCUSED_PROMPTS = STANDARD_PROMPTS
 

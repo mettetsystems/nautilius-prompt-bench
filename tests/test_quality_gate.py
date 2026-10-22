@@ -3,14 +3,16 @@ from pathlib import Path
 import pytest
 import yaml
 from prompt_piper_api.domain.pre_inference_metrics import PreInferenceMetrics
-from prompt_piper_api.domain.requirement_card import RequirementCard
 from prompt_piper_api.services.format_checker import format_adherence_score
 from prompt_piper_api.services.harness_prompt_builder import build_harness_body
 from prompt_piper_api.services.optimization.engine import TokenOptimizationEngine
-from prompt_piper_api.services.pre_inference_metrics_service import PreInferenceMetricsService
+from prompt_piper_api.services.pre_inference_metrics_service import (
+    PreInferenceMetricsService,
+)
 from prompt_piper_api.services.quality_gate_service import QualityGateService
 from prompt_piper_api.services.regression_evaluator import RegressionEvaluator
 from prompt_piper_api.services.tokenizer_approx import estimate_token_cost
+
 from tests.card_fixtures import sample_card
 
 
@@ -43,28 +45,28 @@ def _plain_text_body(*, with_unspecified_done: bool = False) -> str:
 def test_unspecified_field_honesty_is_one_when_marked_unspecified(
     metrics_service: PreInferenceMetricsService,
 ) -> None:
-    card = RequirementCard(
-        task_identity={
-            "objective": "Add FastAPI endpoint for weekly engineering status summaries.",
-            "environment": "Python with FastAPI and Pydantic",
-        },
-        unresolved_fields=["agent_contract.definition_of_done"],
-    )
-    metrics = metrics_service.compute(_plain_text_body(with_unspecified_done=True), card)
+    from tests.card_fixtures import architecture_card
+
+    card = architecture_card()
+    card.application_requirements.acceptance = "Unsure"
+    metrics = metrics_service.compute(build_harness_body(card), card)
     assert metrics.unspecified_field_honesty == 1.0
 
 
 def test_unspecified_field_honesty_fails_when_unresolved_not_marked(
     metrics_service: PreInferenceMetricsService,
 ) -> None:
-    card = RequirementCard(
-        task_identity={
-            "objective": "Add FastAPI endpoint for weekly engineering status summaries.",
-            "environment": "Python with FastAPI and Pydantic",
-        },
-        unresolved_fields=["agent_contract.definition_of_done"],
+    from tests.card_fixtures import architecture_card
+
+    card = architecture_card()
+    card.application_requirements.acceptance = "Unsure"
+    body = "\n".join(
+        line
+        for line in build_harness_body(card).splitlines()
+        if "application_requirements.acceptance" not in line
+        and not line.startswith("Observable Acceptance Criteria:")
     )
-    metrics = metrics_service.compute(_plain_text_body(with_unspecified_done=False), card)
+    metrics = metrics_service.compute(body, card)
     assert metrics.unspecified_field_honesty == 0.0
 
 
@@ -101,7 +103,9 @@ def test_hard_conflict_count_zero_for_clean_prompt(
     assert metrics.requirement_capture_score >= 0.90
 
 
-def test_quality_gate_fails_when_requirement_capture_low(quality_gate: QualityGateService) -> None:
+def test_quality_gate_fails_when_requirement_capture_low(
+    quality_gate: QualityGateService,
+) -> None:
     metrics = PreInferenceMetrics(
         requirement_capture_score=0.50,
         unspecified_field_honesty=1.0,
@@ -120,7 +124,9 @@ def test_quality_gate_fails_when_requirement_capture_low(quality_gate: QualityGa
     assert any("requirement_capture_score" in failure for failure in result.failures)
 
 
-def test_quality_gate_fails_when_hard_conflicts_present(quality_gate: QualityGateService) -> None:
+def test_quality_gate_fails_when_hard_conflicts_present(
+    quality_gate: QualityGateService,
+) -> None:
     metrics = PreInferenceMetrics(
         requirement_capture_score=0.95,
         unspecified_field_honesty=1.0,
@@ -139,7 +145,9 @@ def test_quality_gate_fails_when_hard_conflicts_present(quality_gate: QualityGat
     assert any("hard_conflict_count" in failure for failure in result.failures)
 
 
-def test_quality_gate_passes_for_valid_metrics(quality_gate: QualityGateService) -> None:
+def test_quality_gate_passes_for_valid_metrics(
+    quality_gate: QualityGateService,
+) -> None:
     metrics = PreInferenceMetrics(
         requirement_capture_score=0.95,
         unspecified_field_honesty=1.0,

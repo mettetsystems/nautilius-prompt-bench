@@ -16,6 +16,7 @@ class SessionRecord(BaseModel):
     session: PromptSession
     initial_request: str = Field(default="", description="Original intake text for this session.")
     drafts: list[PromptDraft] = Field(default_factory=list)
+    consultation_policy_version: int = 0
     pending_clarification: ClarificationQuestion | None = None
     clarification_turn: int = Field(default=0, ge=0)
     asked_clarification_fields: list[str] = Field(default_factory=list)

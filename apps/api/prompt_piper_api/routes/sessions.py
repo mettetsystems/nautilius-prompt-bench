@@ -14,8 +14,8 @@ from prompt_piper_api.schemas.precision import (
 from prompt_piper_api.schemas.session import (
     AnswerClarificationRequest,
     AskTheLocalsResponse,
-    ClarificationSuggestionsResponse,
     ClarificationSuggestionRequest,
+    ClarificationSuggestionsResponse,
     CreateSessionFromTemplateRequest,
     CreateSessionRequest,
     EditDraftRequest,
@@ -48,6 +48,7 @@ def get_session_service() -> SessionService:
         _session_service = SessionService(
             llm=create_llm_client_from_env(),
             precision_llm_factory=create_llm_client_from_env,
+            clarification_llm_factory=create_llm_client_from_env,
             registry=GitRegistryService(settings.registry_path),
             similarity=create_similarity_check_service(settings),
             optimizer=TokenOptimizationEngine(),

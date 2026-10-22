@@ -29,8 +29,8 @@ def test_ranker_uses_high_value_field_priority(ranker: ClarificationQuestionRank
 
     assert [question.field_name for question in ranked[:3]] == [
         "application_requirements.project_context",
-        "application_requirements.target_environment",
-        "application_requirements.operating_systems",
+        "application_requirements.acceptance",
+        "agent_contract.change_scope",
     ]
 
 

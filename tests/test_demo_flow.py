@@ -45,11 +45,7 @@ def test_coding_prompt_demo_end_to_end(
         title=demo_scenario.title,
     )
     session_id = created.record.session.id
-    assert created.clarification_field in {
-        "agent_contract.definition_of_done",
-        "agent_contract.change_scope",
-        "agent_contract.architecture_policy",
-    }
+    assert created.clarification_field == "application_requirements.project_context"
 
     drive_session_to_edit(
         service,

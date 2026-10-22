@@ -30,11 +30,8 @@ def test_application_coverage_and_separate_development_environment():
     for name in (
         "project_context",
         "target_environment",
-        "operating_systems",
         "hosting",
-        "runtime",
         "technology",
-        "development_environment",
         "compatibility",
         "delivery",
         "storage",
@@ -75,7 +72,7 @@ def test_harness_delegation_preserves_explicit_policies():
     assert "agent_contract.resource_budget" not in clarification_field_priority(card)
     body = build_harness_body(card)
     assert "Explicit user cap: 20 calls" in body
-    assert "Use the receiving harness controls" in body
+    assert "Use receiving harness controls" in body
     assert "80%" not in body
 
 
@@ -87,11 +84,9 @@ def test_unknowns_and_deliberate_choices_stay_explicit(answer):
     card = RequirementCard()
     RequirementCardExtractor().apply_answer(card, PREFIX + "runtime", answer)
     assert card.application_requirements.runtime == answer
-    assert f"Runtime Compatibility: {answer}" in build_harness_body(card)
-    if answer.lower() in {"unsure", "unknown", "not sure"}:
-        assert PREFIX + "runtime" in material_open_decisions(card)
-    else:
-        assert PREFIX + "runtime" not in material_open_decisions(card)
+    assert answer in build_harness_body(card)
+    assert PREFIX + "runtime" not in material_open_decisions(card)
+    assert card.application_requirements.runtime == answer
 
 
 def test_intake_labeled_decisions_not_asked_twice():
@@ -208,7 +203,7 @@ def test_old_saved_card_and_session_remain_readable():
     assert "Task Identity" in build_harness_body(restored.session.requirement_card)
 
 
-def test_no_sixteen_question_cutoff():
+def test_turn_counter_does_not_cut_off_remaining_architectural_questions():
     from prompt_piper_api.domain.session import PromptSession
     from prompt_piper_api.services.session_service import SessionService
 
@@ -216,9 +211,9 @@ def test_no_sixteen_question_cutoff():
     service._ranker = ClarificationQuestionRanker()
     record = SessionRecord(
         session=PromptSession(requirement_card=RequirementCard()),
-        clarification_turn=16,
+        clarification_turn=99,
         asked_clarification_fields=list(
-            clarification_field_priority(RequirementCard())[:16]
+            clarification_field_priority(RequirementCard())[:2]
         ),
     )
     assert not service._should_finish_clarification(record)
@@ -269,7 +264,7 @@ def test_agent_environment_questions_roundtrip(name):
     card = RequirementCard()
     field = PREFIX + name
     ranker = ClarificationQuestionRanker()
-    assert field in ranker.missing_fields(card)
+    assert (field in ranker.missing_fields(card)) == (name == "validation_environment")
     question = ranker.build_question(field, question_number=1)
     assert question.prompt and question.quick_reply_options[-1] == 'unspecified'
     answer = 'Project-specific environment constraint for ' + name

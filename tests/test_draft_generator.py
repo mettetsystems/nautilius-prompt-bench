@@ -6,9 +6,9 @@ def test_missing_fields_are_marked_unspecified() -> None:
     card = RequirementCard(task_identity={"objective": "Add FastAPI user create endpoint"})
     result = DraftGenerator(llm=None).generate(card)
 
-    assert "agent_contract.definition_of_done" in result.unresolved_fields
-    assert "do not declare COMPLETE without evidence" in result.body
-    assert "agent_contract.validation_strategy" in result.unresolved_fields
+    assert "application_requirements.acceptance" in result.unresolved_fields
+    assert "Completion is determined by evidence against the acceptance criteria" in result.body
+    assert "agent_contract.validation_strategy" not in result.unresolved_fields
     assert result.unspecified_note.startswith("Still unspecified:")
 
 
@@ -27,8 +27,8 @@ def test_rule_based_draft_includes_contract_scaffolds() -> None:
     result = DraftGenerator(llm=None).generate(card)
 
     assert "inspect the repository" in result.body.lower() or "unspecified" in result.body
-    assert "never claim tests probably pass" in result.body
-    assert "Do not invent" not in result.body
+    assert 'Never use "tests probably pass" as evidence' in result.body
+    assert "[Workbench default]" in result.body
 
 
 def test_prompt_includes_objective_and_done_policy_when_known() -> None:
@@ -53,7 +53,7 @@ def test_no_hallucinated_environment() -> None:
     )
     result = DraftGenerator(llm=None).generate(card)
 
-    assert "Environment: unspecified" in result.body
+    assert "Implementation environment: delegated" in result.body
     assert "engineering team" not in result.body.lower()
     assert "executive stakeholders" not in result.body.lower()
 

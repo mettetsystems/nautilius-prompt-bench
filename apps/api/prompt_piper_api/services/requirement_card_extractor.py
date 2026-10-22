@@ -1,7 +1,8 @@
 import json
 import re
 
-from prompt_piper_api.domain.agent_contract import expand_clarification_answer
+from prompt_piper_api.domain.agent_contract import CONTRACT_QUESTIONS, expand_clarification_answer
+from prompt_piper_api.domain.application_requirements import APPLICATION_QUESTIONS
 from prompt_piper_api.domain.requirement_card import LIST_LEAF_FIELDS, RequirementCard
 from prompt_piper_api.llm.base import ChatMessage, LLMClient
 from prompt_piper_api.llm.fallback import with_llm_fallback
@@ -30,7 +31,11 @@ _LLM_EXTRACT_SYSTEM = (
     "The request may include markdown tables; copy each table into "
     "additional_constraints as a single string (keep pipes and row breaks). "
     "Do not flatten table cells into one sentence. "
-    "Leave agent_contract fields empty. Do not invent operational policies."
+    "Also extract explicitly stated application_requirements and agent_contract fields. "
+    "Use only verbatim excerpts of the request for these fields; leave absent fields empty. "
+    "Do not infer requirements, choose tools, or invent operational policies. "
+    "Available fields: "
+    + ", ".join(q.field_name for q in (*APPLICATION_QUESTIONS, *CONTRACT_QUESTIONS))
 )
 
 
@@ -141,7 +146,7 @@ def _constraint_contains_table(item: str, table: str) -> bool:
 
 
 class RequirementCardExtractor:
-    """Maps free-text requests onto task identity; contract fields are filled by clarification."""
+    """Capture explicit requirements; leave decisions and execution defaults to their own layers."""
 
     def __init__(self, llm: LLMClient | None = None) -> None:
         self._llm = llm
@@ -152,10 +157,15 @@ class RequirementCardExtractor:
             lambda client: self._extract_with_llm(client, initial_request),
             lambda: self._extract_rule_based(initial_request),
         )
-        from prompt_piper_api.domain.application_requirements import APPLICATION_QUESTIONS
-        for question in APPLICATION_QUESTIONS:
+        for question in (*APPLICATION_QUESTIONS, *CONTRACT_QUESTIONS):
             key = question.field_name.split(".")[1]
-            match = re.search(rf"^(?:{re.escape(question.section_title)}|{key}):\s*(.+)$", initial_request, re.MULTILINE | re.IGNORECASE)
+            labels = (question.section_title, key, key.replace("_", " "), question.field_name)
+            pattern = "|".join(re.escape(label) for label in labels)
+            match = re.search(
+                rf"^(?:{pattern}):[ \t]*(.+)$",
+                initial_request,
+                re.MULTILINE | re.IGNORECASE,
+            )
             if match:
                 card.set_leaf(question.field_name, match.group(1).strip())
         self._restore_full_intake_prose(card, initial_request)
@@ -169,7 +179,10 @@ class RequirementCardExtractor:
             msg = "Clarification answer cannot be empty"
             raise ValueError(msg)
 
-        if is_unspecified_answer(cleaned) and not (field_name.startswith("application_requirements.") and cleaned.casefold() not in {"unspecified", "skip"}):
+        if is_unspecified_answer(cleaned) and not (
+            field_name.startswith("application_requirements.")
+            and cleaned.casefold() not in {"unspecified", "skip"}
+        ):
             self._mark_unspecified(card, field_name)
             return
 
@@ -181,7 +194,11 @@ class RequirementCardExtractor:
                 ]
             return
 
-        expanded = cleaned if field_name.startswith("application_requirements.") else expand_clarification_answer(field_name, cleaned)
+        expanded = (
+            cleaned
+            if field_name.startswith("application_requirements.")
+            else expand_clarification_answer(field_name, cleaned)
+        )
         self._assign(card, field_name, expanded)
         if field_name in card.unresolved_fields:
             card.unresolved_fields = [name for name in card.unresolved_fields if name != field_name]
@@ -205,6 +222,12 @@ class RequirementCardExtractor:
         )
         payload = json.loads(response.content)
         card = RequirementCard.model_validate(payload)
+        request_text = " ".join(initial_request.casefold().split())
+        for question in (*APPLICATION_QUESTIONS, *CONTRACT_QUESTIONS):
+            value = str(card.get_leaf(question.field_name)).strip()
+            if value and " ".join(value.casefold().split()) not in request_text:
+                card.clear_leaf(question.field_name)
+        card.unresolved_fields = []
         if not card.task_identity.objective:
             prose, _tables = partition_intake_tables(initial_request)
             card.task_identity.objective = _prose_text(prose)

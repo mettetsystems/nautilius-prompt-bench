@@ -68,3 +68,30 @@ def sample_card(
         },
         agent_contract=contract if contract is not None else sample_contract(),
     )
+
+
+def architecture_card():
+    return RequirementCard(
+        task_identity={
+            "objective": "Add order tracking to the existing customer portal"
+        },
+        application_requirements={
+            "project_context": "Existing codebase",
+            "acceptance": "Customers can see their own order status, verified by acceptance tests",
+            "target_environment": "Existing desktop and mobile browsers",
+            "hosting": "Existing infrastructure; customer data stays on premises",
+            "technology": "Follow existing project standards; no additional mandates",
+            "compatibility": "Preserve the public order API and existing records",
+            "storage": "Retain existing order records and established retention rules",
+            "connectivity": "Existing order API; online only",
+            "constraints": "Status latency under 2 seconds; preserve existing availability targets",
+            "permissions": "Customers can access only their own orders; no elevated runtime access",
+            "delivery": "Use the existing rollout process with reversible changes",
+            "validation_environment": "Existing CI and staging",
+        },
+        agent_contract={
+            "change_scope": "Order tracking only; preserve checkout",
+            "architecture_policy": "Use the existing order service boundary",
+            "autonomy_policy": "Choose implementation tools within these constraints; escalate changes to scope or security",
+        },
+    )

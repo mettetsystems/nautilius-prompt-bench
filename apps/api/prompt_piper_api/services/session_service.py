@@ -55,7 +55,6 @@ from prompt_piper_api.services.git_registry_service import (
 )
 from prompt_piper_api.services.logging_config import get_logger
 from prompt_piper_api.services.optimization import TokenOptimizationEngine
-from prompt_piper_api.services.pre_inference_metrics_service import PreInferenceMetricsService
 from prompt_piper_api.services.precision_suggestion_service import PrecisionSuggestionService
 from prompt_piper_api.services.quality_gate_service import QualityGateService
 from prompt_piper_api.services.requirement_card_extractor import RequirementCardExtractor
@@ -166,13 +165,14 @@ class SessionService:
         store: SessionStore | None = None,
         user_settings: UserSettingsService | None = None,
         precision_llm_factory: Callable[[], LLMClient | None] | None = None,
+        clarification_llm_factory: Callable[[], LLMClient | None] | None = None,
     ) -> None:
         self._store = store if store is not None else InMemorySessionStore()
         self._cache: dict[UUID, SessionRecord] = {}
         self._llm = llm
         self._user_settings = user_settings or get_user_settings_service()
         self._extractor = RequirementCardExtractor(llm)
-        self._ranker = ClarificationQuestionRanker(None)
+        self._ranker = ClarificationQuestionRanker(llm, llm_factory=clarification_llm_factory)
         self._suggestion_service = ClarificationSuggestionService(llm)
         self._draft_generator = DraftGenerator(llm)
         self._patch_service = DraftPatchService(llm)
@@ -198,7 +198,9 @@ class SessionService:
         elif session.requirement_card.objective:
             session.title = session.requirement_card.objective[:80]
 
-        record = SessionRecord(session=session, initial_request=initial_request.strip())
+        record = SessionRecord(
+            session=session, initial_request=initial_request.strip(), consultation_policy_version=1,
+        )
         question = self._begin_clarification(record)
         self._save(record)
         return SessionActionResult(
@@ -261,14 +263,39 @@ class SessionService:
     def get_session(self, session_id: UUID) -> SessionRecord:
         cached = self._cache.get(session_id)
         if cached is not None:
-            prune_deferred_unresolved(cached.session.requirement_card)
+            self._reconcile_consultation(cached)
             return cached
         record = self._store.get(session_id)
         if record is None:
             raise SessionNotFoundError(str(session_id))
-        prune_deferred_unresolved(record.session.requirement_card)
+        self._reconcile_consultation(record)
         self._cache[session_id] = record
         return record
+
+    def _reconcile_consultation(self, record: SessionRecord) -> None:
+        """Lazily adapt old queues; reads never call a model or rewrite saved drafts."""
+        card = record.session.requirement_card
+        prune_deferred_unresolved(card)
+        if record.consultation_policy_version >= 1:
+            return
+        fields = set(clarification_field_priority(card))
+        record.asked_clarification_fields = [
+            f for f in record.asked_clarification_fields if f in fields
+        ]
+        record.edit_unresolved_asked = [f for f in record.edit_unresolved_asked if f in fields]
+        pending = record.pending_clarification
+        if pending is not None and pending.field_name not in fields:
+            asked = (record.edit_unresolved_asked if record.session.state is SessionState.EDIT
+                     else record.asked_clarification_fields)
+            replacement = self._ranker.top_question(
+                card, question_number=len(asked) + 1,
+                total_questions=max(len(fields), len(asked) + 1),
+                exclude=frozenset(asked), tailor=False,
+            )
+            record.pending_clarification = replacement
+            if replacement:
+                asked.append(replacement.field_name)
+        record.consultation_policy_version = 1
 
     def delete_session(self, session_id: UUID) -> None:
         self.get_session(session_id)
@@ -1154,6 +1181,8 @@ class SessionService:
             total_questions=len(set(record.asked_clarification_fields) | set(clarification_field_priority(record.session.requirement_card))),
             exclude=exclude,
             last_answer=record.last_clarification_answer,
+            initial_request=record.initial_request,
+            tailor=True,
         )
         record.pending_clarification = question
         if question is not None:
@@ -1231,6 +1260,8 @@ class SessionService:
             rank=asked_count + 1,
             card=record.session.requirement_card,
             last_answer=record.last_clarification_answer,
+            initial_request=record.initial_request,
+            tailor=True,
         )
         record.pending_clarification = question
         record.edit_unresolved_asked.append(field_name)
@@ -1286,19 +1317,6 @@ class SessionService:
 
     @staticmethod
     def _reconcile_unresolved_fields(canonical_body: str, card: RequirementCard) -> None:
-        """Drop non-critical unresolved fields already marked unspecified in the canonical draft.
-
-        Critical contract leaves stay unresolved so honesty / first-shot scoring still
-        catches optimizer drops of those unspecified markers.
-        """
-        from prompt_piper_api.services.first_shot_readiness import CRITICAL_CONTRACT_FIELDS
-
-        metrics = PreInferenceMetricsService()
-        critical = frozenset(CRITICAL_CONTRACT_FIELDS)
-        card.unresolved_fields = [
-            field_name
-            for field_name in card.unresolved_fields
-            if field_name in critical
-            or not metrics._field_marked_unspecified(canonical_body, card, field_name)
-        ]
+        """Architectural gaps remain open until the accepted requirement card resolves them."""
+        del canonical_body
         prune_deferred_unresolved(card)

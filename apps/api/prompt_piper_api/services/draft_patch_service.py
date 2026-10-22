@@ -74,10 +74,12 @@ class DraftPatchService:
                 ChatMessage(
                     role="system",
                     content=(
-                        "Classify edit intent using the provided enum values, update the "
-                        "coding requirement card (task_identity plus 16-question agent_contract), and return JSON with "
-                        "intent, semantic_diff, and updated_requirement_card. semantic_diff must "
-                        "be one short sentence."
+                        'Classify edit intent using the provided enum values, update the '
+                        'coding requirement card (task_identity, application_requirements, '
+                        'and agent_contract), and return JSON with intent, semantic_diff, and'
+                        ' updated_requirement_card. semantic_diff must be one short sentence.'
+                        ' Preserve accepted requirements except where the user explicitly '
+                        'requests a change.'
                     ),
                 ),
                 ChatMessage(
@@ -100,7 +102,17 @@ class DraftPatchService:
         except ValueError:
             intent = EditIntent.OTHER
 
-        updated = RequirementCard.model_validate(payload.get("updated_requirement_card", card))
+        patch = payload.get("updated_requirement_card", {})
+        if not isinstance(patch, dict):
+            raise ValueError("Expected requirement-card object")
+        merged = card.model_dump()
+        for name, value in patch.items():
+            if isinstance(value, dict) and isinstance(merged.get(name), dict):
+                merged[name] = {**merged[name], **value}
+            else:
+                merged[name] = value
+        updated = RequirementCard.model_validate(merged)
+        card.application_requirements = updated.application_requirements
         card.task_identity = updated.task_identity
         card.agent_contract = updated.agent_contract
         card.optimization_targets = updated.optimization_targets

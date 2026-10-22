@@ -16,11 +16,11 @@ export function ClarificationPage({ sessionId, session, readOnly = false }: Clar
   return (
     <div className="page">
       <PageHeader
-        title="Clarification"
+        title="Architecture consultation"
         subtitle={
           readOnly
             ? "Captured requirement answers for this session"
-            : `Field ${questionNumber} of up to ${totalQuestions} — CPU-fast by default`
+            : `Question ${questionNumber} of up to ${totalQuestions} — architectural requirements for your coding-agent prompt`
         }
       />
       <div className={readOnly ? "grid-workflow is-review" : "grid-workflow"}>

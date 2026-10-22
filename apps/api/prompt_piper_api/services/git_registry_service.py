@@ -281,7 +281,8 @@ class GitRegistryService:
             card.model_dump_json(indent=2),
             encoding="utf-8",
         )
-        coding_spec = card.coding_spec_dict()
+        from prompt_piper_api.services.contract_resolver import resolve_contract
+        coding_spec = resolve_contract(card).coding_spec_dict()
         (prompt_dir / "coding_prompt_spec.json").write_text(
             json.dumps(coding_spec, indent=2),
             encoding="utf-8",

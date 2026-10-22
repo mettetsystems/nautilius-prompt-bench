@@ -16,9 +16,10 @@ Business logic layer. Routes should delegate here rather than mutating domain ob
 | Module | Role |
 |--------|------|
 | `requirement_card_extractor.py` | Parse initial request into task identity + agent contract |
-| `clarification_question_ranker.py` | CPU-fast next-question selection (16 contract leaves) |
-| `clarification_suggestion_service.py` | Optional LLM quick-reply suggestions |
-| `draft_generator.py` | 17-section long-horizon contract after clarification |
+| `clarification_question_ranker.py` | Deterministic architecture-question selection and one-time model tailoring |
+| `clarification_suggestion_service.py` | Optional architectural answer suggestions |
+| `contract_resolver.py` | Accepted requirements plus labeled defaults and developer responsibilities |
+| `draft_generator.py` | Deterministic 17-section long-horizon contract after clarification |
 | `draft_patch_service.py` | Apply natural-language edits to the card + draft |
 
 ## Quality, similarity, export
