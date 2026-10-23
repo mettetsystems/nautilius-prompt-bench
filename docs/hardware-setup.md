@@ -7,21 +7,68 @@ separate GPUs are never assumed to pool VRAM. Missing drivers, unavailable devic
 access, or unknown memory produce conservative recommendations. Containers only
 see their assigned devices: run the CLI on the host for a complete scan.
 
-`make setup` presents three local choices and one remote choice:
+`make setup` prioritizes a software-specification workload: **32,768 total tokens,
+including 8,192 output tokens, for one active request**. The remaining 24,576 input
+tokens include system instructions, chat history, retrieved code, requirements and
+the existing spec. Reasoning tokens also consume the output allowance when the
+model emits them. Output is part of the context window, not an extra window.
 
-| Tier | Recommended model | Planning allowance at modest context |
-| --- | --- | --- |
-| Low / no GPU, 1B–2B | Qwen3 1.7B Q8_0 | 4 GiB free VRAM and 8 GiB available RAM; CPU inference with 8 GiB available RAM when GPU memory is insufficient |
-| Mid, 7B–16B | Qwen3 8B Q4_K_M; Qwen3 14B Q4_K_M when more memory is free | 8B: 6 GiB free VRAM / 12 GiB available RAM; 14B: 16 GiB free VRAM / 16 GiB available RAM |
-| High, 17B+ | DeepSeek-R1-Distill-Qwen-32B Q4_K_M | 24 GiB free VRAM / 32 GiB available RAM |
-| Remote | Your OpenAI-compatible endpoint and model ID | No local model VRAM required; requests leave this machine |
+The planner compares **weights + KV cache + runtime buffers + safety reserve**
+against verified **free** VRAM. It budgets F16 K and V separately from weight
+quantization, 1 GiB for runtime, and a safety reserve of the greater of 2 GiB or
+15% of total device VRAM. Available system RAM must also pass the model's budget.
+The CLI and Settings display each component; these are estimates, not measured
+peak allocations or model-quality scores.
 
-These ranges describe model parameter counts, not VRAM sizes. Quantization,
-context length, backend buffers, and other running programs affect fit. The
-1.7B option favors speed and low resource use; 8B/14B provide a middle ground;
-32B reasoning can take tens of seconds to minutes. These are planning estimates,
-not speed benchmarks. The advanced catalog and model-free rule-based mode remain
-available. The remote option disables local model autostart and works without a GPU.
+| Model | Weight allowance | F16 KV at 32K | Typical placement with this policy |
+| --- | --- | --- | --- |
+| Qwen3 1.7B Q8_0 | 1.8 GiB | 3.5 GiB | Light assistance or slow CPU fallback; not the recommended spec author |
+| Qwen3 8B Q4_K_M | 4.8 GiB | 4.5 GiB | Mostly free 16 GiB GPU |
+| Qwen3 14B Q4_K_M | 8.5 GiB | 5 GiB | Mostly free 24–32 GiB GPU |
+| DeepSeek-R1-Distill-Qwen-32B Q4_K_M | 18.6 GiB | 8 GiB | Larger GPU, such as 48 GiB; a 32 GiB card fails the reserve policy |
+
+The mid tier selects 14B only when the complete workload fits, otherwise 8B.
+The highest eligible mid/high candidate is suggested; if neither qualifies,
+remote is suggested and the light/CPU option remains available. Choosing remote
+does not send requests or start a local server during setup. The remote provider
+must support the desired context and output separately.
+
+Standard local setup saves `PROMPT_PIPER_DEPLOYMENT_PROFILE=specification`.
+The native launcher checks available resources again before launch, uses the
+actual GGUF file size when larger than the catalog allowance, and fixes 32K
+context, one slot, F16 cache, batch 512 / microbatch 128, and full GPU offload.
+CPU fallback retains the context and requires enough available RAM. Insufficient
+or unknown memory stops launch with an explanation; it never silently shrinks
+the specification context or partially offloads the model. Conflicting context
+or layer overrides are rejected. The local API client's default generation
+allowance becomes 8K; explicit per-call limits and external overrides are separate.
+Context shifting is disabled, so oversized requests must be shortened explicitly.
+Readiness also checks the server's reported context and slot count, so a running
+4K endpoint cannot pass merely by answering a short health-check prompt.
+
+Existing installations and Advanced/non-interactive preset selection retain
+`manual` deployment behavior until standard setup selects the specification
+profile. Advanced catalog size tiers are not a 32K fit check. Automatic budgeting
+supports the four listed catalog artifacts and their filenames; arbitrary imports
+need a manual architecture/cache assessment. A filename is an estimate of model
+identity, not a provenance check. Renaming a different model does not validate it.
+The optional Compose llama service and separately managed remote/clarification
+endpoints do not use the native launch guard; configure their context, slots,
+cache and memory limits explicitly before using them for this workload.
+
+Run one model at a time on the selected GPU. A second resident model needs its
+own weight/cache budget; current free VRAM already excludes existing allocations.
+Keep embeddings on CPU unless they have a separate allowance. Do not count memory
+on another GPU as additional capacity for this deployment.
+
+Before relying on the model, test a representative spec with close to 24K input
+tokens and an 8K generation allowance. Record peak memory, prompt-processing time,
+generation speed, truncation and failures. Check requirements coverage, consistent
+interfaces, explicit acceptance tests, dependencies, migration/rollback plans and
+whether the model preserves constraints through revisions. Memory fit alone does
+not establish that a model can produce a reliable software spec. For long-horizon
+coding, keep the spec, decisions and progress checkpoints in durable files and
+retrieve relevant sections rather than growing the conversation indefinitely.
 
 The existing dedicated clarification-model endpoint remains separately configurable.
 Neither scanning nor saving model-source preferences loads a model.
@@ -32,6 +79,15 @@ Model sources checked:
 [official Qwen 14B GGUF](https://huggingface.co/Qwen/Qwen3-14B-GGUF), and
 [community DeepSeek 32B GGUF](https://huggingface.co/bartowski/DeepSeek-R1-Distill-Qwen-32B-GGUF).
 DeepSeek's Q4_K_M conversion is about 19.85 GB; Qwen 14B Q4_K_M is about 9 GB.
+KV estimates use `2 × layers × KV heads × head dimension × 2 bytes × total tokens`
+per active request. Upstream architecture sources:
+[Qwen3 1.7B](https://huggingface.co/Qwen/Qwen3-1.7B/blob/main/config.json),
+[Qwen3 8B](https://huggingface.co/Qwen/Qwen3-8B/blob/main/config.json),
+[Qwen3 14B](https://huggingface.co/Qwen/Qwen3-14B/blob/main/config.json), and
+[DeepSeek 32B](https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-32B/blob/main/config.json).
+The Qwen policy caps automatic context at 32K; extending it needs separate model
+and backend validation. See [llama.cpp server options](https://github.com/ggml-org/llama.cpp/tree/master/tools/server)
+for context, parallel slots, cache types and batching.
 
 ## Hugging Face token and local repositories
 

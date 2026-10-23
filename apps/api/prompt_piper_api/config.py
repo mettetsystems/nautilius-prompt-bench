@@ -1,7 +1,7 @@
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Self
+from typing import Literal, Self
 
 from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -49,6 +49,9 @@ class Settings(BaseSettings):
 
     api_host: str = Field(default="127.0.0.1", alias="API_HOST")
     api_port: int = Field(default=8010, alias="API_PORT")
+    prompt_piper_deployment_profile: Literal["manual", "specification"] = Field(
+        default="manual", alias="PROMPT_PIPER_DEPLOYMENT_PROFILE",
+    )
 
     database_url: str = Field(
         default="sqlite:///./data/prompt_piper.db",

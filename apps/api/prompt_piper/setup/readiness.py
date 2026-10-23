@@ -6,6 +6,31 @@ import time
 import httpx
 
 
+def probe_specification_context(base_url: str, api_key: str | None = None) -> tuple[bool, str]:
+    """A tiny completion cannot prove that an existing server has the planned window."""
+    from prompt_piper.setup.deployment_budget import SPECIFICATION
+
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    try:
+        with httpx.Client(timeout=10) as client:
+            response = client.get(
+                base_url.rstrip("/").removesuffix("/v1") + "/props", headers=headers,
+            )
+            response.raise_for_status()
+            props = response.json()
+        if (
+            props["default_generation_settings"]["n_ctx"] == SPECIFICATION.context_tokens
+            and props["total_slots"] == SPECIFICATION.parallel_requests
+        ):
+            return True, "Model inference and 32K context / one active slot verified."
+    except (httpx.HTTPError, ValueError, KeyError, TypeError):
+        pass
+    return False, (
+        "Cannot verify 32768 tokens and one slot from llama-server /props. "
+        "Restart the endpoint with the specification configuration before using it."
+    )
+
+
 def probe_inference(base_url: str, model: str, api_key: str | None = None, *, timeout: float = 120, wait_seconds: float = 0) -> tuple[bool, str]:
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     deadline = time.monotonic() + wait_seconds

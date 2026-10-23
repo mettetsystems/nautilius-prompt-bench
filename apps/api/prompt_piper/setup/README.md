@@ -8,6 +8,8 @@ Configures local development: model paths, API URLs, CPU vs GPU mode. Writes rep
 | `catalog.py` | Known model presets (Gemma, Qwen, etc.) |
 | `env_writer.py` | Merge answers into `.env` without clobbering secrets |
 | `gpu_detect.py` | Detect NVIDIA GPU and VRAM for model sizing |
+| `deployment_budget.py` | Specification workload budgets: weights, 32K context cache, runtime and reserve |
+| `hardware.py` | Shared memory-aware recommendations for setup and Settings |
 | `download_model.py` | Download GGUF from `.env` (`make download-model`) |
 | `ensure_llm.py` | Entry for `make ensure-llm` / `dev-api.sh` — start or skip llama |
 | `llama_launcher.py` | Spawn and health-check `llama-server` subprocess |

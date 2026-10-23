@@ -58,6 +58,9 @@ def load_local_chat_settings(settings: Settings | None = None) -> ModelSettings:
         app_settings.prompt_piper_model_profile,
         size_class=size_class,
     )
+    if app_settings.prompt_piper_deployment_profile == "specification":
+        from prompt_piper.setup.deployment_budget import SPECIFICATION
+        max_tokens = SPECIFICATION.output_tokens
     return ModelSettings(
         provider=ModelProvider.LOCAL_OPENAI_COMPATIBLE,
         base_url=app_settings.prompt_piper_local_base_url,

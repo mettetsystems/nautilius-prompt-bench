@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from prompt_piper.setup.readiness import probe_inference
+from prompt_piper.setup.readiness import probe_inference, probe_specification_context
 from prompt_piper.setup.gpu_detect import detect_gpu
 from prompt_piper.setup.llama_launcher import (
     build_server_config,
@@ -79,6 +79,7 @@ def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
         default=_truthy(os.getenv("PROMPT_PIPER_AUTO_START_LLM"), default=True),
     )
     preset = _env_lookup(env, "PROMPT_PIPER_LOCAL_MODEL_PRESET")
+    deployment_profile = _env_lookup(env, "PROMPT_PIPER_DEPLOYMENT_PROFILE") or "manual"
     llm_enabled = _truthy(env.get("PROMPT_PIPER_LLM_ENABLED"), default=True)
     allow_cpu_llm = _truthy(
         env.get("PROMPT_PIPER_ALLOW_CPU_LLM"),
@@ -99,6 +100,8 @@ def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
 
     def verify() -> EnsureLlmResult:
         ok, message = probe_inference(base_url, model, api_key, wait_seconds=300)
+        if ok and deployment_profile == "specification":
+            ok, message = probe_specification_context(base_url, api_key)
         os.environ["PROMPT_PIPER_LLM_ENABLED"] = "true" if ok else "false"
         return EnsureLlmResult("already_running", ok, message)
 
@@ -113,11 +116,19 @@ def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
     openai_base = base_url
 
     gpu = detect_gpu()
-    cpu_only = gpu is None
+    cpu_only = gpu is None or (
+        deployment_profile == "specification" and allow_cpu_llm
+        and _env_lookup(env, "PROMPT_PIPER_LLAMA_GPU_LAYERS") == "0"
+    )
     if allow_cpu_llm and gpu is not None:
         from prompt_piper.setup.catalog import ALL_PRESETS
         selected = ALL_PRESETS.get(preset or "")
-        if selected and (gpu.free_vram_mb is None or gpu.free_vram_mb < selected.min_vram_mb):
+        required = selected.min_vram_mb if selected else None
+        if deployment_profile == "specification":
+            from prompt_piper.setup.deployment_budget import MODEL_MEMORY, memory_plan
+            if preset in MODEL_MEMORY:
+                required = memory_plan(preset, total_vram_mb=gpu.vram_mb)["required_vram_mb"]
+        if required and (gpu.free_vram_mb is None or gpu.free_vram_mb < required):
             cpu_only = True
     if cpu_only and not allow_cpu_llm:
         os.environ["PROMPT_PIPER_LLM_ENABLED"] = "false"
@@ -175,18 +186,23 @@ def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
             return EnsureLlmResult("cpu_only", False,
                 f"{binary} cannot use the detected {gpu.vendor} GPU. Install a matching CUDA/ROCm/Metal build and runtime libraries; set LLAMA_SERVER to that binary.")
 
+    try:
+        ctx = _env_lookup(env, "PROMPT_PIPER_LLAMA_N_CTX") or _env_lookup(
+            env, "PROMPT_PIPER_LLAMA_CONTEXT_SIZE"
+        )
+        layers = _env_lookup(env, "PROMPT_PIPER_LLAMA_GPU_LAYERS")
+        config = build_server_config(
+            model_path=model_path, binary=binary, gpu=gpu, host=host, port=port,
+            cpu_only=cpu_only, deployment_profile=deployment_profile, preset_id=preset,
+            context_size=int(ctx) if ctx else None, gpu_layers=int(layers) if layers else None,
+        )
+    except ValueError as exc:
+        os.environ["PROMPT_PIPER_LLM_ENABLED"] = "false"
+        return EnsureLlmResult("cpu_only", False, f"Model deployment budget rejected: {exc}")
+
     managed_pid = read_managed_pid()
     if managed_pid is not None:
         stop_managed_server()
-
-    config = build_server_config(
-        model_path=model_path,
-        binary=binary,
-        gpu=gpu,
-        host=host,
-        port=port,
-        cpu_only=cpu_only,
-    )
     log_path = root / "data" / "llama-server.log"
     process = start_server(config, log_path=log_path)
     if not wait_for_server(openai_base, process=process, timeout_seconds=300):

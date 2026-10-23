@@ -8,6 +8,7 @@ _MANAGED_KEYS = frozenset(
         "PROMPT_PIPER_LLM_ENABLED",
         "PROMPT_PIPER_AUTO_START_LLM",
         "PROMPT_PIPER_ALLOW_CPU_LLM",
+        "PROMPT_PIPER_DEPLOYMENT_PROFILE",
         "PROMPT_PIPER_LOCAL_BASE_URL",
         "PROMPT_PIPER_LOCAL_CHAT_MODEL",
         "PROMPT_PIPER_LOCAL_EMBED_MODEL",
@@ -42,7 +43,7 @@ def upsert_env_section(
     """Merge wizard-managed keys into .env, preserving unrelated lines."""
     existing = env_path.read_text(encoding="utf-8") if env_path.is_file() else ""
     stripped = _remove_managed_section(existing)
-    stripped = _remove_managed_keys(stripped)
+    stripped = _remove_keys(stripped, _MANAGED_KEYS | frozenset(values))
 
     lines = [line.rstrip() for line in stripped.splitlines()]
     while lines and not lines[-1].strip():

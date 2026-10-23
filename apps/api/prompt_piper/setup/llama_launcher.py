@@ -24,6 +24,7 @@ class LlamaServerConfig:
     binary: Path
     device_id: str | None = None
     vendor: str | None = None
+    deployment_profile: str = "manual"
 
 
 def _env_int(name: str) -> int | None:
@@ -196,7 +197,49 @@ def build_server_config(
     port: int = 8080,
     context_size: int | None = None,
     cpu_only: bool = False,
+    deployment_profile: str | None = None,
+    preset_id: str | None = None,
+    gpu_layers: int | None = None,
 ) -> LlamaServerConfig:
+    profile = deployment_profile or os.getenv("PROMPT_PIPER_DEPLOYMENT_PROFILE", "manual")
+    if profile == "specification":
+        from prompt_piper.setup.deployment_budget import SPECIFICATION, plan_model_file
+        from prompt_piper.setup.hardware import system_memory
+
+        ctx = context_size
+        if ctx is None:
+            ctx = _env_int("PROMPT_PIPER_LLAMA_N_CTX")
+        if ctx is None:
+            ctx = _env_int("PROMPT_PIPER_LLAMA_CONTEXT_SIZE")
+        if ctx is not None and ctx != SPECIFICATION.context_tokens:
+            raise ValueError(
+                "Specification deployment requires 32768 context tokens; rerun make setup"
+            )
+        cpu = cpu_only or gpu is None
+        layers = gpu_layers if gpu_layers is not None else _env_int("PROMPT_PIPER_LLAMA_GPU_LAYERS")
+        if not cpu and layers is not None and layers != 999:
+            raise ValueError(
+                "Specification GPU deployment requires full offload (999 layers); "
+                "use manual deployment for partial offload"
+            )
+        plan = plan_model_file(model_path, preset_id, gpu.vram_mb if gpu else None)
+        ram, _ = system_memory()
+        if ram is None or ram < plan["required_ram_mb"]:
+            raise ValueError(
+                f"Specification deployment needs {plan['required_ram_mb']} MiB verified available RAM"
+            )
+        if not cpu and (gpu.free_vram_mb is None or gpu.free_vram_mb < plan["required_vram_mb"]):
+            raise ValueError(
+                f"32K specification context needs {plan['required_vram_mb']} MiB free VRAM "
+                "including KV cache and reserves. Free memory, choose a smaller model or remote; "
+                "the context will not be reduced automatically."
+            )
+        return LlamaServerConfig(
+            host=host, port=port, context_size=SPECIFICATION.context_tokens,
+            gpu_layers=0 if cpu else 999, model_path=model_path, binary=binary,
+            device_id=gpu.device_id if gpu else None, vendor=gpu.vendor if gpu else None,
+            deployment_profile=profile,
+        )
     tuned_ctx, tuned_ngl = tune_llama_resources(
         vram_mb=None if gpu is None else gpu.vram_mb,
         free_vram_mb=(
@@ -210,7 +253,9 @@ def build_server_config(
         host=host,
         port=port,
         context_size=context_size if context_size is not None else tuned_ctx,
-        gpu_layers=tuned_ngl,
+        gpu_layers=(
+            gpu_layers if gpu_layers is not None and not (cpu_only or gpu is None) else tuned_ngl
+        ),
         model_path=model_path,
         binary=binary,
         device_id=gpu.device_id if gpu else None,
@@ -219,7 +264,7 @@ def build_server_config(
 
 
 def llama_command(config: LlamaServerConfig) -> list[str]:
-    return [
+    command = [
         str(config.binary),
         "-m",
         str(config.model_path),
@@ -232,6 +277,13 @@ def llama_command(config: LlamaServerConfig) -> list[str]:
         "-ngl",
         str(config.gpu_layers),
     ]
+    if config.deployment_profile == "specification":
+        command.extend([
+            "--parallel", "1", "--cache-type-k", "f16", "--cache-type-v", "f16",
+            "--batch-size", "512", "--ubatch-size", "128", "--n-predict", "8192",
+            "--no-context-shift",
+        ])
+    return command
 
 
 def read_managed_pid() -> int | None:

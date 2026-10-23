@@ -6,8 +6,8 @@ from prompt_piper.setup.hardware import recommendations
 from prompt_piper.setup.wizard import run_setup_wizard
 
 
-def report(free=32000, ram=48000):
-    gpu = GpuInfo("nvidia", "5090", 32607, free, "GPU-large")
+def report(free=32000, ram=48000, total=32607):
+    gpu = GpuInfo("nvidia", "test GPU", total, free, "GPU-large")
     return recommendations([gpu], gpu, ram)
 
 
@@ -24,9 +24,9 @@ def test_multi_gpu_does_not_choose_first_or_pool_memory(monkeypatch):
         devices = detect_gpus()
     assert len(devices) == 2
     assert select_gpu(devices).device_id == "GPU-large"
-    assert recommendations(devices, select_gpu(devices), 48000)["recommended"] == "high"
+    assert recommendations(devices, select_gpu(devices), 48000)["recommended"] == "mid"
     two_small = [GpuInfo("nvidia", "8GB", 8192, 7800)] * 2
-    assert recommendations(two_small, two_small[0], 48000)["recommended"] == "mid"
+    assert recommendations(two_small, two_small[0], 48000)["recommended"] == "remote"
 
 
 def test_malformed_memory_and_visibility(monkeypatch):
@@ -42,7 +42,7 @@ def test_malformed_memory_and_visibility(monkeypatch):
         devices = detect_gpus()
     assert len(devices) == 1
     assert devices[0].free_vram_mb is None
-    assert recommendations(devices, devices[0], 48000)["recommended"] == "low"
+    assert recommendations(devices, devices[0], 48000)["recommended"] == "remote"
 
 
 def test_amd_memory_json(monkeypatch):
@@ -69,7 +69,8 @@ def test_low_mid_high_options_and_unknown_resources():
     assert [o["id"] for o in report()["local_options"]] == ["low", "mid", "high"]
     assert report()["local_options"][2]["preset"] == "deepseek-r1-32b"
     assert report(9000)["local_options"][1]["preset"] == "qwen3-8b"
-    assert report(18000)["local_options"][1]["preset"] == "qwen3-14b"
+    assert report(22000)["local_options"][1]["preset"] == "qwen3-14b"
+    assert report(18000)["local_options"][1]["preset"] == "qwen3-8b"
     assert report(18000)["recommended"] == "mid"
     assert report(1000)["local_options"][0]["status"] == "cpu"
     assert recommendations([], None, None)["recommended"] == "remote"
@@ -84,13 +85,16 @@ def test_interactive_high_and_remote_and_cpu(tmp_path, monkeypatch):
         (["0"], None),
     ]:
         inputs = iter(choices)
-        with patch("prompt_piper.setup.hardware.scan_hardware", return_value=report()):
+        with patch("prompt_piper.setup.hardware.scan_hardware", return_value=report(47000, total=49152)):
             result = run_setup_wizard(
                 env_path=tmp_path / ".env",
                 input_fn=lambda _: next(inputs),
                 print_fn=lambda _: None,
             )
         assert result.preset_id == expected
+        if expected == "deepseek-r1-32b":
+            assert "PROMPT_PIPER_DEPLOYMENT_PROFILE=specification" in (tmp_path / ".env").read_text()
+            assert "PROMPT_PIPER_LLAMA_N_CTX=32768" in (tmp_path / ".env").read_text()
         if expected == "custom":
             assert (
                 "PROMPT_PIPER_AUTO_START_LLM=false" in (tmp_path / ".env").read_text()

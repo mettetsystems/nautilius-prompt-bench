@@ -39,6 +39,7 @@ class SetupResult:
     env_path: Path
     allow_cpu: bool = False
     local_source: Path | None = None
+    deployment_profile: str = "manual"
 
 
 InputFn = Callable[[str], str]
@@ -107,9 +108,17 @@ def _choose_model_source(result: SetupResult, read: InputFn, write: PrintFn) -> 
     weights_mb = source.stat().st_size // 1048576
     ram = report["available_ram_mb"]
     free = (report["selected_gpu"] or {}).get("free_vram_mb")
-    if ram is None or ram < weights_mb + 2048:
+    required_ram = required_vram = weights_mb + 2048
+    if result.deployment_profile == "specification":
+        from prompt_piper.setup.deployment_budget import plan_model_file
+
+        plan = plan_model_file(
+            source, result.preset_id, (report["selected_gpu"] or {}).get("vram_mb")
+        )
+        required_ram, required_vram = plan["required_ram_mb"], plan["required_vram_mb"]
+    if ram is None or ram < required_ram:
         raise ValueError("Not enough verified available RAM for this GGUF file")
-    if not result.allow_cpu and (free is None or free < weights_mb + 2048):
+    if not result.allow_cpu and (free is None or free < required_vram):
         raise ValueError("Not enough verified free VRAM for this GGUF file; choose the CPU/low option or remote")
     save_preferences(local_repo=location)
     return replace(result, local_source=source, chat_model=source.stem)
@@ -121,7 +130,7 @@ def _run_interactive(read: InputFn, write: PrintFn) -> SetupResult:
 
     report = scan_hardware()
     print_hardware(report, write)
-    write("  0) Rule-based mode (no model)\n  5) Advanced model catalog")
+    write("  0) Rule-based mode (no model)\n  5) Advanced manual model catalog")
     default = {"low": "1", "mid": "2", "high": "3", "remote": "4"}[report["recommended"]]
     while True:
         choice = _choose(read, "Model choice", ("0", "1", "2", "3", "4", "5"), default=default)
@@ -148,10 +157,13 @@ def _run_interactive(read: InputFn, write: PrintFn) -> SetupResult:
             continue
         deployment = _ask_deployment(read, write)
         result = _preset_result(ALL_PRESETS[option["preset"]], PODMAN_BASE_URL if deployment == "podman" else NATIVE_BASE_URL)
-        return replace(result, allow_cpu=option["status"] == "cpu")
+        return replace(
+            result, allow_cpu=option["status"] == "cpu", deployment_profile="specification"
+        )
 
 
 def _run_advanced(read: InputFn, write: PrintFn) -> SetupResult:
+    write("Manual deployment: catalog size tiers do not validate the 32K specification budget.")
     write(
         "\nHow should Nautilius Prompting Workbench handle clarification and draft wording?\n"
         "  1) CPU-only mode (no local chat model; rule-based fallbacks)\n"
@@ -254,8 +266,6 @@ def _choose_preset(
         option_index += 1
         options.append(preset)
         tags: list[str] = []
-        if preset.tier == rec_tier and preset_fits_vram(preset, gpu.vram_mb if gpu else None):
-            tags.append("recommended")
         if gpu is not None and gpu.vram_mb is not None and not preset_fits_vram(preset, gpu.vram_mb):
             tags.append(f"needs ~{preset.min_vram_mb // 1024}GB+ VRAM")
         if preset.community_gguf:
@@ -349,7 +359,12 @@ def _apply_result(env_path: Path, result: SetupResult) -> None:
         "PROMPT_PIPER_LOCAL_CHAT_MODEL": result.chat_model,
         "PROMPT_PIPER_LOCAL_EMBED_MODEL": result.chat_model,
         "PROMPT_PIPER_LOCAL_MODEL_PRESET": result.preset_id or "custom",
+        "PROMPT_PIPER_DEPLOYMENT_PROFILE": result.deployment_profile,
     }
+    if result.deployment_profile == "specification":
+        # Clear stale short-context/partial-offload choices when choosing this workload.
+        values["PROMPT_PIPER_LLAMA_N_CTX"] = "32768"
+        values["PROMPT_PIPER_LLAMA_GPU_LAYERS"] = "0" if result.allow_cpu else "999"
 
     preset = ALL_PRESETS.get(result.preset_id or "")
     if preset is not None:
