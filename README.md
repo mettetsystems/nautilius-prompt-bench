@@ -477,3 +477,8 @@ make demo          # end-to-end coding-prompt demo (demo/coding_prompt.yaml)
 - Session DB migration from file store to Postgres for multi-user deployments
 - CI workflow file (run checks above on push)
 - Podman volume mount for `SESSIONS_PATH` in compose (native dev uses `./data/sessions` today)
+
+## License
+
+This project is licensed under the GNU General Public License, version 3.0 only
+(`GPL-3.0-only`). See [LICENSE](LICENSE) for the full license text.

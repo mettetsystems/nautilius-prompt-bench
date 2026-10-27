@@ -2,6 +2,7 @@
   "name": "prompt-piper",
   "private": true,
   "version": "0.1.0",
+  "license": "GPL-3.0-only",
   "description": "Local-first long-horizon coding-agent prompting workbench",
   "workspaces": [
     "apps/web",
