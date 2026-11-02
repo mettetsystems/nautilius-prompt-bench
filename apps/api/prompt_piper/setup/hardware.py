@@ -142,5 +142,5 @@ def print_hardware(report: dict, write=print) -> None:
             f"+ runtime {plan['runtime_mb']} + reserve {plan['reserve_mb']} "
             f"= {plan['required_vram_mb']}"
         )
-    write("  4) Remote OpenAI-compatible endpoint — no local model GPU required")
+    write("  4) Existing/remote OpenAI-compatible endpoint — reuse a server")
     write(f"Recommended: {report['recommended']}. {report['note']}")

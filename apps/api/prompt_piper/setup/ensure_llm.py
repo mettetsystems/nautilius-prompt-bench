@@ -7,7 +7,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from prompt_piper.setup.readiness import probe_inference, probe_specification_context
+from prompt_piper.setup.endpoint_discovery import (
+    discover_endpoints,
+    local_endpoint_conflict,
+    port_is_listening,
+)
+from prompt_piper.setup.env_writer import load_env as _load_env
 from prompt_piper.setup.gpu_detect import detect_gpu
 from prompt_piper.setup.llama_launcher import (
     build_server_config,
@@ -16,13 +21,13 @@ from prompt_piper.setup.llama_launcher import (
     read_managed_pid,
     repo_root,
     resolve_model_path,
-    server_base_url,
     start_server,
     stop_managed_server,
     wait_for_server,
 )
+from prompt_piper.setup.readiness import probe_inference, probe_specification_context
 
-EnsureMode = Literal["gpu", "cpu", "cpu_only", "already_running", "skipped"]
+EnsureMode = Literal["gpu", "cpu", "cpu_only", "already_running", "skipped", "blocked"]
 
 
 @dataclass(frozen=True)
@@ -38,24 +43,6 @@ def _truthy(value: str | None, *, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _load_env(env_path: Path) -> dict[str, str]:
-    if not env_path.is_file():
-        return {}
-    values: dict[str, str] = {}
-    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        import shlex
-        try:
-            parts = shlex.split(value.strip())
-            values[key.strip()] = parts[0] if len(parts) == 1 else value.strip()
-        except ValueError:
-            values[key.strip()] = value.strip()
-    return values
-
-
 def _parse_host_port(base_url: str) -> tuple[str, int]:
     without_scheme = base_url.removeprefix("http://").removeprefix("https://")
     host_port = without_scheme.split("/", 1)[0]
@@ -66,7 +53,7 @@ def _parse_host_port(base_url: str) -> tuple[str, int]:
 
 
 def _env_lookup(env: dict[str, str], key: str) -> str | None:
-    return env.get(key) or os.getenv(key)
+    return env.get(key, os.getenv(key))
 
 
 def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
@@ -105,7 +92,7 @@ def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
         os.environ["PROMPT_PIPER_LLM_ENABLED"] = "true" if ok else "false"
         return EnsureLlmResult("already_running", ok, message)
 
-    if not auto_start or is_server_healthy(base_url):
+    if not auto_start or preset == "custom" or is_server_healthy(base_url):
         return verify()
 
     from urllib.parse import urlsplit
@@ -114,6 +101,19 @@ def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
         return verify()  # Never try to bind a server to a remote host.
     host, port = address.hostname, address.port or (443 if address.scheme == "https" else 80)
     openai_base = base_url
+
+    endpoints = discover_endpoints({**env, "PROMPT_PIPER_LOCAL_BASE_URL": base_url})
+    if any(endpoint.base_url == base_url.rstrip("/") for endpoint in endpoints):
+        return verify()  # Authenticated, loading, and empty-list servers are still owned elsewhere.
+    conflict = local_endpoint_conflict(endpoints)
+    if conflict or port_is_listening(base_url):
+        os.environ["PROMPT_PIPER_LLM_ENABLED"] = "false"
+        return EnsureLlmResult(
+            "blocked", False, conflict or (
+                f"The configured model port at {base_url} is already occupied. "
+                "No model was started or stopped. Check that service, then rerun make setup."
+            ),
+        )
 
     gpu = detect_gpu()
     cpu_only = gpu is None or (

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 from prompt_piper.setup.catalog import (
     ALL_PRESETS,
-    GEMMA3N_PRESETS,
     GEMMA3_PRESETS,
+    GEMMA3N_PRESETS,
     NATIVE_BASE_URL,
     PODMAN_BASE_URL,
     QWEN3_PRESETS,
@@ -17,15 +18,20 @@ from prompt_piper.setup.catalog import (
     preset_fits_vram,
     resolve_preset_id,
 )
-from prompt_piper.setup.env_writer import upsert_env_section
+from prompt_piper.setup.endpoint_discovery import (
+    ModelEndpoint,
+    discover_endpoints,
+    local_endpoint_conflict,
+    normalize_base_url,
+    probe_endpoint,
+)
+from prompt_piper.setup.env_writer import load_env, upsert_env_section
 from prompt_piper.setup.gpu_detect import detect_gpu, recommended_tier
 from prompt_piper.setup.lexicon_setup import lexicon_setup_command_lines
 from prompt_piper.setup.model_deps import (
     hf_cli_env_comments,
     hf_download_command,
 )
-
-
 from prompt_piper.setup.paths import repo_root
 
 
@@ -63,13 +69,27 @@ def run_setup_wizard(
     write = print_fn or print
 
     write(_banner())
+    settings = load_env(target_env)
+    endpoints: list[ModelEndpoint] = []
     if non_interactive:
         result = _resolve_non_interactive(non_interactive)
+        if not result.cpu_only and result.preset_id != "custom":
+            endpoints = discover_endpoints(settings)
     else:
-        result = _run_interactive(read, write)
+        write("Checking for existing model endpoints (model metadata only)...")
+        endpoints = discover_endpoints(settings)
+        result = _offer_existing_endpoint(endpoints, read, write)
+        if result is None:
+            result = _run_interactive(read, write)
 
-    if not non_interactive and not result.cpu_only and result.preset_id != "custom":
-        result = _choose_model_source(result, read, write)
+    if not result.cpu_only and result.preset_id != "custom":
+        # The user may have stopped the other server while choosing a model.
+        if local_endpoint_conflict(endpoints) and (
+            conflict := local_endpoint_conflict(discover_endpoints(settings))
+        ):
+            raise ValueError(conflict)
+        if not non_interactive:
+            result = _choose_model_source(result, read, write)
     _apply_result(target_env, result)
     target_env.chmod(0o600)
     _print_next_steps(write, result)
@@ -81,15 +101,105 @@ def _banner() -> str:
         "\nNautilius Prompting Workbench setup — local model configuration\n"
         "================================================\n"
         "Clarification and draft generation can use a local OpenAI-compatible\n"
-        "server (llama.cpp, vLLM, etc.) or run in CPU-only mode with rule-based\n"
+        "server (Project Maya, vLLM, llama.cpp, etc.) or use rule-based\n"
         "fallbacks. Similarity search embeddings stay separate.\n"
     )
+
+
+def _read_api_key(read: InputFn, *, required: bool = False) -> str | None:
+    from getpass import getpass
+
+    hint = "required by this server" if required else "optional"
+    prompt = f"API key ({hint}; stored in .env): "
+    return (getpass if read is input else read)(prompt).strip() or None
+
+
+def _endpoint_model(endpoint: ModelEndpoint, read: InputFn, write: PrintFn) -> str:
+    if len(endpoint.models) == 1:
+        write(f"Using model: {endpoint.models[0]}")
+        return endpoint.models[0]
+    if endpoint.models:
+        for index, model in enumerate(endpoint.models, 1):
+            write(f"  {index}) {model}")
+        choice = _choose(
+            read, "Model to use", tuple(str(i) for i in range(1, len(endpoint.models) + 1)),
+            default="1",
+        )
+        return endpoint.models[int(choice) - 1]
+    write(
+        f"Model list unavailable: {endpoint.status}. "
+        "Enter a model already served by this endpoint."
+    )
+    model = read("Model ID: ").strip()
+    if not model:
+        raise ValueError("A model ID is required.")
+    return model
+
+
+def _offer_existing_endpoint(
+    endpoints: list[ModelEndpoint], read: InputFn, write: PrintFn
+) -> SetupResult | None:
+    if not endpoints:
+        write("No endpoints found on the checked addresses. Enter a custom URL below if needed.")
+        return None
+    write("Existing model endpoints or services requiring verification:")
+    for index, endpoint in enumerate(endpoints, 1):
+        detail = ", ".join(endpoint.models) or endpoint.status
+        write(f"  {index}) {endpoint.base_url} — {detail}")
+    write("Reusing a server avoids loading another model into RAM/VRAM.")
+    while True:
+        answer = read("Use an existing model endpoint? [Y/n]: ").strip().lower()
+        if answer in {"", "y", "yes"}:
+            break
+        if answer in {"n", "no"}:
+            write("Local model startup stays blocked while another local server is detected.")
+            return None
+    index = "1"
+    if len(endpoints) > 1:
+        index = _choose(
+            read, "Endpoint", tuple(str(i) for i in range(1, len(endpoints) + 1)), default="1"
+        )
+    endpoint = endpoints[int(index) - 1]
+    if endpoint.status.startswith("credentials required"):
+        key = _read_api_key(read, required=True)
+        verified = probe_endpoint(endpoint.base_url, key)
+        if verified is None or verified.status.startswith("credentials required"):
+            raise ValueError("Could not access the endpoint model list. Check its URL and API key.")
+        endpoint = verified
+    elif not endpoint.api_key:
+        # Some servers expose a public model list but protect chat completions.
+        endpoint = replace(endpoint, api_key=_read_api_key(read))
+    model = _endpoint_model(endpoint, read, write)
+    base_url = endpoint.base_url
+    address = urlsplit(base_url)
+    if address.hostname in {"localhost", "127.0.0.1", "::1"} and (
+        _ask_deployment(read, write) == "podman"
+    ):
+        host = "host.containers.internal"
+        if address.port:
+            host += f":{address.port}"
+        base_url = urlunsplit((address.scheme, host, address.path, "", ""))
+    write("Reusing the selected endpoint. Local model downloads and auto-start are disabled.")
+    return SetupResult(False, "custom", base_url, model, endpoint.api_key, Path())
+
+
+def _custom_endpoint(read: InputFn, write: PrintFn) -> SetupResult:
+    write("Connect to Project Maya, vLLM, llama.cpp, or another OpenAI-compatible server.")
+    base_url = normalize_base_url(read("Existing/remote OpenAI-compatible base URL: "))
+    key = _read_api_key(read)
+    endpoint = probe_endpoint(base_url, key)
+    model = _endpoint_model(
+        endpoint or ModelEndpoint(base_url, status="unreachable or model listing unsupported"),
+        read, write,
+    )
+    return SetupResult(False, "custom", base_url, model, key, Path())
 
 
 def _choose_model_source(result: SetupResult, read: InputFn, write: PrintFn) -> SetupResult:
     from dataclasses import replace
     from getpass import getpass
-    from prompt_piper.setup.model_sources import load_preferences, save_preferences, local_gguf
+
+    from prompt_piper.setup.model_sources import load_preferences, local_gguf, save_preferences
 
     prefs = load_preferences()
     write("Model source: 1) Hugging Face download  2) Import from local repository/folder")
@@ -126,6 +236,7 @@ def _choose_model_source(result: SetupResult, read: InputFn, write: PrintFn) -> 
 
 def _run_interactive(read: InputFn, write: PrintFn) -> SetupResult:
     from dataclasses import replace
+
     from prompt_piper.setup.hardware import print_hardware, scan_hardware
 
     report = scan_hardware()
@@ -139,18 +250,11 @@ def _run_interactive(read: InputFn, write: PrintFn) -> SetupResult:
         if choice == "5":
             return _run_advanced(read, write)
         if choice == "4":
-            from urllib.parse import urlparse
-            endpoint = read("Remote OpenAI-compatible base URL (including /v1): ").strip()
-            if urlparse(endpoint).scheme not in {"http", "https"} or not urlparse(endpoint).hostname:
-                write("Enter an http(s) URL with a hostname.")
+            try:
+                return _custom_endpoint(read, write)
+            except ValueError as exc:
+                write(str(exc))
                 continue
-            model = read("Remote model ID: ").strip()
-            if not model:
-                write("A model ID is required.")
-                continue
-            from getpass import getpass
-            key = (getpass if read is input else read)("API key (optional; stored in .env): ").strip() or None
-            return SetupResult(False, "custom", endpoint, model, key, Path())
         option = report["local_options"][int(choice)-1]
         if option["status"] == "unavailable":
             write(option["reason"])
@@ -189,6 +293,9 @@ def _run_advanced(read: InputFn, write: PrintFn) -> SetupResult:
     )
     family_choice = _choose(read, "Choice", ("1", "2", "3", "4"), default="1")
 
+    if family_choice == "4":
+        return _custom_endpoint(read, write)
+
     deployment = _ask_deployment(read, write)
     base_url = PODMAN_BASE_URL if deployment == "podman" else NATIVE_BASE_URL
     gpu = detect_gpu()
@@ -200,25 +307,8 @@ def _run_advanced(read: InputFn, write: PrintFn) -> SetupResult:
     if family_choice == "2":
         preset = _choose_preset(read, write, GEMMA3N_PRESETS, gpu=gpu, default_index=0)
         return _preset_result(preset, base_url)
-    if family_choice == "3":
-        preset = _choose_preset(read, write, QWEN3_PRESETS, gpu=gpu, default_index=2)
-        return _preset_result(preset, base_url)
-
-    write(
-        "\nCustom endpoint — for GPUs running larger models (7B–30B) via vLLM,\n"
-        "llama.cpp, Ollama OpenAI shim, or similar.\n"
-    )
-    base_url = _prompt_default(read, "OpenAI-compatible base URL", base_url)
-    chat_model = _prompt_default(read, "Model name / ID exposed by your server", "llama")
-    api_key = read("API key (optional, press Enter to skip): ").strip() or None
-    return SetupResult(
-        cpu_only=False,
-        preset_id="custom",
-        base_url=base_url,
-        chat_model=chat_model,
-        api_key=api_key,
-        env_path=Path(),
-    )
+    preset = _choose_preset(read, write, QWEN3_PRESETS, gpu=gpu, default_index=2)
+    return _preset_result(preset, base_url)
 
 
 def _ask_deployment(read: InputFn, write: PrintFn) -> str:
@@ -398,8 +488,9 @@ def _apply_result(env_path: Path, result: SetupResult) -> None:
             preamble=preamble,
         )
         return
-    elif result.api_key:
-        values["PROMPT_PIPER_LOCAL_API_KEY"] = result.api_key
+    else:
+        # An explicitly unauthenticated selection must not inherit an old shell key.
+        values["PROMPT_PIPER_LOCAL_API_KEY"] = result.api_key or ""
 
     upsert_env_section(env_path, values)
 
@@ -441,8 +532,8 @@ def _print_next_steps(write: PrintFn, result: SetupResult) -> None:
         write(f"       cp data/models/{preset.suggested_gguf_filename} data/models/model.gguf\n")
         write("       podman compose -f infra/podman-compose.yml --profile llama up -d\n")
     else:
-        write("  1. Start your OpenAI-compatible server on the host.\n")
-        write(f"  2. Confirm it serves model {result.chat_model!r} at {result.base_url}\n")
+        write(f"  1. Using model {result.chat_model!r} at {result.base_url}\n")
+        write("  2. Keep that server running; Nautilius will not download or start another model.\n")
         write("  3. make dev-api && make dev-web\n")
     write("\n  Re-run wizard: make setup\n")
 

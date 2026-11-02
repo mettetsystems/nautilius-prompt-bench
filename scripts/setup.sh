@@ -103,7 +103,11 @@ echo ""
 echo "Verifying configured model inference..."
 "${PYTHON}" -m prompt_piper.setup.ensure_llm --strict
 
-echo "Next: make download-model   # if you skipped the GGUF download"
-echo "      make ensure-llm       # verify GPU + start llama-server"
+if [[ "${preset}" == "custom" ]]; then
+  echo "Using your existing endpoint; no local model was downloaded or started."
+elif [[ "${preset}" != "cpu-only" && "${llm_enabled}" != "false" ]]; then
+  echo "Next: make download-model   # if you skipped the GGUF download"
+  echo "      make ensure-llm       # verify GPU + start llama-server"
+fi
 echo "      make dev-api          # terminal 1"
 echo "      make dev-web          # terminal 2"

@@ -81,7 +81,7 @@ def test_interactive_high_and_remote_and_cpu(tmp_path, monkeypatch):
     monkeypatch.setenv("PROMPT_PIPER_REPO_ROOT", str(tmp_path))
     for choices, expected in [
         (["3", "1", "1", ""], "deepseek-r1-32b"),
-        (["4", "https://example.test/v1", "hosted-model", ""], "custom"),
+        (["4", "https://example.test/v1", "", "hosted-model"], "custom"),
         (["0"], None),
     ]:
         inputs = iter(choices)

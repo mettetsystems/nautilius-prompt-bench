@@ -4,7 +4,8 @@ Configures local development: model paths, API URLs, CPU vs GPU mode. Writes rep
 
 | Module | Role |
 |--------|------|
-| `wizard.py` | Interactive prompts — catalog pick, custom endpoint, CPU-only |
+| `wizard.py` | Interactive prompts — reuse detected endpoint, catalog pick, custom endpoint, CPU-only |
+| `endpoint_discovery.py` | Metadata-only OpenAI-compatible server discovery and launch conflict checks |
 | `catalog.py` | Known model presets (Gemma, Qwen, etc.) |
 | `env_writer.py` | Merge answers into `.env` without clobbering secrets |
 | `gpu_detect.py` | Detect NVIDIA GPU and VRAM for model sizing |

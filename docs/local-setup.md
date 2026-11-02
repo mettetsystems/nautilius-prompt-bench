@@ -47,13 +47,47 @@ After `make install`, run the interactive setup wizard from the repo root:
 make setup
 ```
 
+Setup first checks for existing OpenAI-compatible model servers and asks **Use an
+existing model endpoint? [Y/n]** when it finds one. This supports Project Maya,
+vLLM, llama.cpp, LM Studio, Ollama, and other servers with a compatible `/models`
+API. Choose an endpoint and, when it lists several models, the model to use.
+Protected endpoints prompt for an API key; saved credentials are used only for
+their own URL. For a host model accessed by the Podman API, choose Podman when
+prompted so the saved address uses `host.containers.internal`.
+
+Discovery sends only model-list GET requests; it does not load models or generate
+text. It checks the saved primary and clarification URLs plus IPv4/IPv6 loopback ports
+8080, 8000, 8081, 1234, 11434, 5000, 1337, and 9931 with short timeouts. Project
+Maya's usual address is `http://127.0.0.1:8080/v1`; vLLM commonly uses port 8000.
+See the [Project Maya API documentation](https://github.com/mw00/project-maya#using-it),
+[vLLM server documentation](https://docs.vllm.ai/en/latest/serving/online_serving/),
+and [llama.cpp server documentation](https://github.com/ggml-org/llama.cpp/tree/master/tools/server).
+For other addresses, select **Existing/remote OpenAI-compatible endpoint** or set
+`PROMPT_PIPER_DISCOVERY_URLS` to a comma-separated list in `.env` before setup.
+A server root URL is expanded to `/v1`; include the full API prefix for reverse proxies.
+
+Reusing an endpoint saves its URL, model ID, and optional key, disables local
+auto-start, and skips GGUF downloads. Setup still verifies the selected model with
+a chat completion at the end. Keep the external server running; Nautilius does
+not start a replacement if it goes offline.
+
+Declining reuse lets you choose rule-based or remote mode. A new local model
+selection is blocked while a detected local service remains active, including
+services requiring authentication or reporting that they are loading/busy.
+Non-interactive preset setup fails with guidance to run the interactive wizard
+instead of silently choosing an endpoint. `make ensure-llm` and `make dev-api`
+repeat discovery before auto-start and also refuse an occupied model port.
+No existing server is stopped to make room. Discovery covers the checked URLs,
+not every process or port on the machine; retain the free-RAM/VRAM budget checks
+and add nonstandard server URLs to the discovery list.
+
 Choices:
 
 1. **CPU-only** — disables the chat LLM (`PROMPT_PIPER_LLM_ENABLED=false`); clarification uses rule-based fallbacks.
 2. **Gemma 3** — official `google/*-qat-q4_0-gguf` releases (1B, 4B, 12B prosumer). Requires Hugging Face Gemma license (`hf auth login`).
 3. **Gemma 3n** — efficient E4B (~3–4B class); community GGUF from official `google/gemma-3n-E4B-it` weights until Google publishes QAT GGUF.
 4. **Qwen3** — official `Qwen/Qwen3-*-GGUF` releases (0.6B–8B). No Gemma license.
-5. **Other** — your own OpenAI-compatible URL (vLLM, Ollama, etc.).
+5. **Other** — your own OpenAI-compatible URL (Project Maya, vLLM, llama.cpp, etc.).
 
 The wizard detects GPU VRAM when available and groups presets:
 

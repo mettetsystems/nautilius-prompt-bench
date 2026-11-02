@@ -11,6 +11,15 @@ def client() -> TestClient:
 
 
 @pytest.fixture(autouse=True)
+def isolate_model_endpoint_discovery(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Setup/startup tests must never depend on or contact the developer's models."""
+    monkeypatch.setattr("prompt_piper.setup.wizard.discover_endpoints", lambda _: [])
+    monkeypatch.setattr("prompt_piper.setup.wizard.probe_endpoint", lambda *a, **k: None)
+    monkeypatch.setattr("prompt_piper.setup.ensure_llm.discover_endpoints", lambda _: [])
+    monkeypatch.setattr("prompt_piper.setup.ensure_llm.port_is_listening", lambda _: False)
+
+
+@pytest.fixture(autouse=True)
 def isolate_documents_export_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep tests off ~/Documents/Nautilius unless a test overrides paths explicitly."""
     export_root = tmp_path / "prompt-piper-export"

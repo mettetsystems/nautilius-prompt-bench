@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import shlex
 from pathlib import Path
 
 _MANAGED_KEYS = frozenset(
@@ -32,6 +33,24 @@ _SECTION_BEGIN = "# --- Local LLM (Nautilius Prompting Workbench setup wizard) -
 _SECTION_END = "# --- End local LLM setup ---"
 _LEXICON_SECTION_BEGIN = "# --- Precision lexicon (Nautilius Prompting Workbench setup) ---"
 _LEXICON_SECTION_END = "# --- End precision lexicon setup ---"
+
+
+def load_env(env_path: Path) -> dict[str, str]:
+    """Read the shell-quoted assignments written by setup without executing them."""
+    if not env_path.is_file():
+        return {}
+    values: dict[str, str] = {}
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        try:
+            parts = shlex.split(value.strip())
+            values[key.strip()] = parts[0] if len(parts) == 1 else value.strip()
+        except ValueError:
+            values[key.strip()] = value.strip()
+    return values
 
 
 def upsert_env_section(
