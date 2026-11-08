@@ -31,7 +31,7 @@ def test_prompt_maps_cover_same_fields() -> None:
     assert set(STANDARD_PROMPTS) == set(BEGINNER_PROMPTS) == set(ADVANCED_PROMPTS)
 
 
-def test_build_version_texts_includes_beginner_rationale() -> None:
+def test_build_version_texts_includes_rationale_at_every_level() -> None:
     versions = build_version_texts("agent_contract.definition_of_done")
     assert [item.level for item in versions] == [
         ClarificationLevel.BEGINNER,
@@ -43,7 +43,7 @@ def test_build_version_texts_includes_beginner_rationale() -> None:
     assert "finish" in beginner.rationale.lower() or "honest" in beginner.rationale.lower()
     assert versions[1].prompt == STANDARD_PROMPTS["agent_contract.definition_of_done"]
     assert versions[2].prompt == ADVANCED_PROMPTS["agent_contract.definition_of_done"]
-    assert versions[1].rationale is None
+    assert all(version.rationale == beginner.rationale for version in versions)
 
 
 def test_ranker_attaches_all_versions() -> None:

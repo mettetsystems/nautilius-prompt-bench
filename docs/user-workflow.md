@@ -22,7 +22,7 @@ Provide:
 - `initial_request` — free-text description of the coding prompt to design (stack, task, contracts).
 - `title` (optional) — defaults to a truncated `task_identity.objective`.
 
-The system extracts a `RequirementCard` (task identity plus a 16-question agent contract) from the request and enters `clarifying`. The response includes the first clarification question, dotted leaf field name, and quick-reply options (always ending with `unspecified`). Conservative recommended defaults are the first option on each question.
+The system extracts a `RequirementCard` (task identity, application requirements, and an agent contract) from the request and enters `clarifying`. The response includes the first clarification question, dotted leaf field name, and quick-reply options (always ending with `unspecified`). Choices and model recommendations become requirements only when you submit an answer.
 
 The Dashboard **Recent sessions** list is this browser's local history. **Delete** on a row calls `POST /sessions/{id}/delete`, which removes the session JSON from this machine. Finalized copies in the local registry stay.
 
@@ -41,21 +41,33 @@ Example:
 **API:** `POST /sessions/{id}/answer` with `{ "answer": "..." }`  
 **Early finish:** `POST /sessions/{id}/clarify/complete` when remaining gaps are explicitly `unspecified`
 
-The ranker asks the 16 long-horizon control questions by priority (`ClarificationQuestionRanker`), up to **16** questions. The loop ends when:
+The interview uses the **Flipped Interaction Pattern**: the model leads by asking the questions needed to reach your prompt goal. This follows the goal-directed questioning pattern described in [White et al., *A Prompt Pattern Catalog*, section III-D](https://arxiv.org/html/2302.11382v1#S3.SS4).
 
-1. All requirement fields have values, or
-2. Remaining gaps are marked `unspecified` and the user chooses **Generate draft now**, or
-3. The question cap is reached (draft is generated automatically).
+With AI assistance enabled, the model considers your initial request, accepted requirements, and last answer to select **one consequential unanswered architectural decision at a time**. It looks ahead to implementation, delivery, and verification, prioritizing gaps that could block success or cause rework. If project context is unknown, that question comes first so the app can distinguish new applications, existing systems, and non-application tasks. Already answered, inapplicable, and already asked fields are excluded from selection during the current pass.
+
+Every Beginner, Standard, and Advanced question includes **Why this matters**, explaining what the answer enables. The model can also include up to three **Potential blind spots (unconfirmed)**: relevant assumptions, dependencies, edge cases, or missing success criteria. These are prompts for you to consider, not requirements automatically added to your card.
+
+For example, for a prompt goal of adding offline order entry:
+
+> **Question:** When two offline devices change the same order, which changes should survive synchronization?
+>
+> **Why this matters:** The conflict rule determines how synchronization preserves orders when devices reconnect.
+>
+> **Potential blind spot (unconfirmed):** It is not yet clear whether simultaneous edits must be retained for review.
+
+You can answer in your own words, choose quick replies, or explicitly leave a gap open. The model waits for your answer before generating the next question. **Get model suggestions** can propose a focused follow-up with its reason; recommendations remain editable proposals until submitted. **Ask The Locals** continues to recommend an answer when requested.
+
+When AI assistance is disabled, unavailable, or returns invalid question data, the app uses deterministic templates with **Why this matters** and no generated blind spots. The current question is saved: refreshing or reopening a session does not regenerate it. Existing saved questions remain readable; the new generation behavior starts with the next question.
+
+The interview covers up to sixteen architectural topics, depending on applicability. The loop ends when:
+
+1. All applicable architectural decisions are resolved, or
+2. The user chooses **Generate draft now**, keeping remaining gaps explicitly unresolved, or
+3. Every remaining applicable decision has been asked in this pass (a draft is generated with any unresolved gaps).
 
 Answers may be quick-reply strings or free text. Answering `unspecified`, `skip`, or `unknown` keeps the field unresolved; the draft will mark it `unspecified` rather than inventing a value.
 
-Typical sequence for a long-horizon agent contract:
-
-| Turn | Field | Example answer |
-|------|-------|----------------|
-| 1 | `agent_contract.definition_of_done` | recommended default (COMPLETE only with evidence) |
-| 2 | `agent_contract.change_scope` | recommended default (smallest complete change) |
-| … | … | Additional contract leaves or `unspecified` |
+Routine execution policies are resolved separately through labeled workbench defaults and delegated implementation instructions. The interview focuses on outcomes, boundaries, constraints, and approval decisions.
 
 ## 3. Initial draft
 

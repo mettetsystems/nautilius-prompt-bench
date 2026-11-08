@@ -1,7 +1,7 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ClarificationQuestionPanel } from "./ClarificationQuestionPanel";
-import type { SessionDetailResponse } from "../api/types";
+import type { ClarificationVersionText, SessionDetailResponse } from "../api/types";
 
 const mocks = vi.hoisted(() => ({ suggest: vi.fn(), answer: vi.fn() }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: { llm_enabled: true, status: "ok" } }) }));
@@ -26,6 +26,43 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.suggest.mockResolvedValue({ field_name: session.clarification_field, original_answer: "Python", proposed_answer: "Python 3.12", suggested_answers: [], recommendations: ["Consider Python 3.12"], model_available: true });
   mocks.answer.mockResolvedValue({});
+});
+
+describe("flipped interaction questions", () => {
+  const rationale = "Access rules determine which order records the portal may expose.";
+  const blindSpot = "It is unconfirmed whether shared accounts may see another customer's orders.";
+  const versions: ClarificationVersionText[] = ["beginner", "standard", "advanced"].map((level) => ({
+    level: level as ClarificationVersionText["level"],
+    label: level[0].toUpperCase() + level.slice(1),
+    prompt: "Who should be allowed to view each order?",
+    rationale,
+    blind_spots: [blindSpot],
+  }));
+
+  it("shows why and unconfirmed blind spots in every wording without adopting them", () => {
+    render(<ClarificationQuestionPanel sessionId="one" session={{ ...session, clarification_versions: versions }} />);
+    for (const label of ["Beginner", "Standard", "Advanced"]) {
+      const detail = screen.getByText(label).closest("details")!;
+      expect(within(detail).getByText("Why this matters:")).toBeInTheDocument();
+      expect(within(detail).getByText(rationale, { exact: false })).toBeInTheDocument();
+      expect(within(detail).getByText("Potential blind spots (unconfirmed)")).toBeInTheDocument();
+      expect(within(detail).getByText(blindSpot)).toBeInTheDocument();
+      if (label === "Standard") expect(detail).toHaveAttribute("open");
+    }
+    expect(screen.getByLabelText("Custom answer (optional)")).toHaveValue("");
+    expect(mocks.answer).not.toHaveBeenCalled();
+  });
+
+  it("shows legacy beginner explanations in standard and advanced wording too", () => {
+    const legacyVersions = versions.map(({ blind_spots: _unused, ...version }) => ({
+      ...version,
+      rationale: version.level === "beginner" ? rationale : null,
+    }));
+    render(<ClarificationQuestionPanel sessionId="one" session={{ ...session, clarification_versions: legacyVersions }} />);
+    const standard = screen.getByText("Standard").closest("details")!;
+    expect(within(standard).getByText(rationale, { exact: false })).toBeInTheDocument();
+    expect(screen.queryByText("Potential blind spots (unconfirmed)")).not.toBeInTheDocument();
+  });
 });
 
 describe("clarification suggestions", () => {

@@ -10,7 +10,7 @@ Local-first **long-horizon coding-agent** prompting workbench. Design, clarify, 
 - **Clarity-first optimization** — expand and deconflict operational rules instead of compressing for token cost. Long-horizon prompts are expected to be large.
 - **Dual export** — rendered `canonical_prompt` / `optimized_prompt` plus structured `coding_prompt_spec.json` and `.yaml`.
 - **Persistent sessions** — progress survives browser refresh and API restarts (`SESSIONS_PATH`, default `./data/sessions/`). **Breaking schema note:** clear `./data/sessions/` after upgrading from the old six-dimension card format.
-- **Architecture consultation** — a senior-developer interview for a CTO or Principal Architect, with automatically tailored questions, offline templates, quick replies, and optional model recommendations. Tooling choices are delegated within accepted constraints.
+- **Architecture consultation** — a senior-developer interview using the Flipped Interaction Pattern: the model leads with a consequential unanswered question, explains why it matters to your prompt goal, and surfaces potential blind spots. Offline templates, quick replies, and optional recommendations remain available. Tooling choices are delegated within accepted constraints.
 - **Step navigation** — revisit earlier steps from the workflow stepper; **re-open** edit, similarity, or optimization when you need to change course mid-session.
 - **Closed completed sessions** — exported sessions are read-only for audit; start a new session with **Use as template** from the Complete page.
 - **Binding-aware approval** — the pre-inference gate scores optimized prompts against constraint-graph bindings (not every optional card field), and the optimizer preserves those bindings while expanding for clarity.
@@ -272,7 +272,7 @@ podman build -f infra/Containerfile.web -t prompt-piper-web .
 
 ## Local model endpoint setup
 
-Nautilius Prompting Workbench talks to an **OpenAI-compatible** server for clarification suggestions, draft generation, and optional chat. Clarification selection is deterministic. When AI assistance is enabled, the configured tooling model tailors each newly selected architectural question; unavailable or invalid responses fall back to predefined questions. Refreshing a pending question does not query the model. **Get model suggestions** and **Ask The Locals** remain optional.
+Nautilius Prompting Workbench talks to an **OpenAI-compatible** server for clarification suggestions, draft generation, and optional chat. When AI assistance is enabled, the configured tooling model uses the **Flipped Interaction Pattern** to select and tailor one applicable, unanswered architectural question at a time, guided by your initial goal and accepted answers. Each wording level includes **Why this matters**; generated **Potential blind spots (unconfirmed)** highlight gaps to consider without adding requirements. Project context is established first because it determines which questions apply. Unavailable or invalid responses fall back to predefined questions with explanations. Refreshing a pending question does not query the model. **Get model suggestions** and **Ask The Locals** remain optional. See the [clarification workflow](docs/user-workflow.md#2-clarification-loop) for examples and fallback behavior.
 
 **Maya is the default when it is already running.** Before the API starts serving
 requests, Nautilius checks `http://127.0.0.1:8080/v1/models` and uses an advertised

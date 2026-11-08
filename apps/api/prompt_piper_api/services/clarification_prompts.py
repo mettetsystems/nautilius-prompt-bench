@@ -32,9 +32,12 @@ class ClarificationVersionText(BaseModel):
     prompt: str = Field(description="The question to ask the user.")
     rationale: str | None = Field(
         default=None,
-        description="Why this question matters (emphasized for beginner).",
+        description="Why this question matters to the user's goal, at every wording level.",
     )
-
+    blind_spots: list[str] = Field(
+        default_factory=list,
+        description="Potential gaps to confirm, not accepted requirements.",
+    )
 
 
 ALL_QUESTIONS = (*APPLICATION_QUESTIONS, *CONTRACT_QUESTIONS)
@@ -76,12 +79,12 @@ def build_version_texts(field_name: str) -> list[ClarificationVersionText]:
             level=ClarificationLevel.STANDARD,
             label=LEVEL_LABELS[ClarificationLevel.STANDARD],
             prompt=standard,
-            rationale=None,
+            rationale=beginner_rationale,
         ),
         ClarificationVersionText(
             level=ClarificationLevel.ADVANCED,
             label=LEVEL_LABELS[ClarificationLevel.ADVANCED],
             prompt=advanced,
-            rationale=None,
+            rationale=beginner_rationale,
         ),
     ]

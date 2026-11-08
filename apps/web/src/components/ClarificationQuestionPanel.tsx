@@ -79,6 +79,8 @@ function ClarificationVersionAccordions({
   optionGuides: QuickReplyGuide[];
 }) {
   const visible = versions.filter((version) => isVersionEnabled(version.level, availability));
+  // Older saved questions supplied an explanation only in the beginner wording.
+  const sharedRationale = versions.find((version) => version.rationale)?.rationale;
 
   return (
     <div
@@ -101,11 +103,19 @@ function ClarificationVersionAccordions({
           </summary>
           <div className="clarification-version-body">
             <p className="question-text">{version.prompt}</p>
-            {version.rationale && (
+            {(version.rationale || sharedRationale) && (
               <p className="clarification-rationale">
                 <span className="clarification-rationale-label">Why this matters: </span>
-                {version.rationale}
+                {version.rationale || sharedRationale}
               </p>
+            )}
+            {(version.blind_spots?.length ?? 0) > 0 && (
+              <div className="clarification-rationale">
+                <p className="clarification-rationale-label">Potential blind spots (unconfirmed)</p>
+                <ul>
+                  {version.blind_spots?.map((spot, index) => <li key={index}>{spot}</li>)}
+                </ul>
+              </div>
             )}
             {version.level === "beginner" && <BeginnerOptionGuides guides={optionGuides} />}
           </div>
@@ -262,7 +272,7 @@ export function ClarificationQuestionPanel({
 
   const defaultHelp = readOnly
     ? "Review the requirement card for answers captured during clarification."
-    : "Describe the architectural requirements and approval boundaries. The receiving coding agent will choose implementation tools within them. Questions adapt when AI assistance is enabled; quick replies and custom answers also work offline.";
+    : "Answer one question at a time to sharpen your prompt goal. With AI assistance, the model prioritizes open decisions, explains why they matter, and highlights potential blind spots for you to confirm. Quick replies and custom answers also work offline.";
 
   return (
     <Panel

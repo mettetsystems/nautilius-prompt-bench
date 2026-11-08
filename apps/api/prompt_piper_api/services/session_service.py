@@ -1250,21 +1250,21 @@ class SessionService:
             record.pending_clarification = None
             return None
 
-        field_name = remaining[0]
         asked_count = len(record.edit_unresolved_asked)
         total = record.edit_unresolved_total or (asked_count + len(remaining))
-        question = self._ranker.build_question(
-            field_name,
+        card = record.session.requirement_card
+        question = self._ranker.top_question(
+            card,
             question_number=asked_count + 1,
             total_questions=max(total, 1),
-            rank=asked_count + 1,
-            card=record.session.requirement_card,
+            exclude=frozenset(clarification_field_priority(card)) - frozenset(remaining),
             last_answer=record.last_clarification_answer,
             initial_request=record.initial_request,
             tailor=True,
         )
         record.pending_clarification = question
-        record.edit_unresolved_asked.append(field_name)
+        if question is not None:
+            record.edit_unresolved_asked.append(question.field_name)
         record.session.touch()
         return question
 

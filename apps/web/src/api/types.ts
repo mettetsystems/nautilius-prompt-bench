@@ -310,6 +310,7 @@ export interface ClarificationVersionText {
   label: string;
   prompt: string;
   rationale: string | null;
+  blind_spots?: string[];
 }
 
 export interface QuickReplyGuide {

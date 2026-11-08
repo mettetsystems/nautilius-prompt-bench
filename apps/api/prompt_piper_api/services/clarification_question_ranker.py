@@ -14,6 +14,7 @@ from prompt_piper_api.domain.application_requirements import (
 from prompt_piper_api.domain.consultation import (
     CONSULTANT_PERSONA,
     CONSULTATION_TOPICS,
+    FLIPPED_INTERACTION_PATTERN,
     SPECIAL_REPLIES,
     consultation_fields,
     reconcile_unresolved,
@@ -129,7 +130,7 @@ class ClarificationQuestion(BaseModel):
 
 
 class ClarificationQuestionRanker:
-    """Ranks missing coding-dimension leaves and builds one quick question at a time."""
+    """Selects an open decision with the model, or deterministic priority offline."""
 
     def __init__(
         self,
@@ -168,20 +169,24 @@ class ClarificationQuestionRanker:
         tailor: bool = True,
     ) -> ClarificationQuestion | None:
         ranked = [question for question in self.rank(card) if question.field_name not in exclude]
-        if ranked:
-            field_name = ranked[0].field_name
-            return self.build_question(
-                field_name,
-                question_number=question_number,
-                total_questions=total_questions,
-                rank=ranked[0].rank,
-                card=card,
-                last_answer=last_answer,
-                initial_request=initial_request,
-                tailor=tailor,
+        if not ranked:
+            return None
+        field_name = ranked[0].field_name
+        eligible_fields = {question.field_name: question.rank for question in ranked}
+        # Establish applicability before asking about application-specific decisions.
+        if field_name == "application_requirements.project_context":
+            eligible_fields = {field_name: ranked[0].rank}
+        result = self.build_question(
+            field_name,
+            question_number=question_number,
+            total_questions=total_questions,
+            rank=ranked[0].rank,
+        )
+        if tailor:
+            return self._generate(
+                result, card, initial_request, last_answer, eligible_fields
             )
-
-        return None
+        return result
 
     def build_question(
         self,
@@ -204,6 +209,7 @@ class ClarificationQuestionRanker:
             total_questions=total_questions,
             prompt=prompt,
             quick_reply_options=quick_reply_options,
+            rationale=versions[1].rationale,
         )
         result = ClarificationQuestion(
             field_name=field_name,
@@ -217,16 +223,30 @@ class ClarificationQuestionRanker:
             rank=rank or question_number,
         )
         if tailor and card is not None:
-            try:
-                client = self._llm_factory() if self._llm_factory else self._llm
-            except Exception:
-                return result
-            return with_llm_fallback(
-                client,
-                lambda llm: self._tailor(llm, result, card, initial_request, last_answer),
-                lambda: result,
+            return self._generate(
+                result, card, initial_request, last_answer, {field_name: result.rank}
             )
         return result
+
+    def _generate(
+        self,
+        question: ClarificationQuestion,
+        card: RequirementCard,
+        initial_request: str,
+        last_answer: str | None,
+        eligible_fields: dict[str, int],
+    ) -> ClarificationQuestion:
+        try:
+            client = self._llm_factory() if self._llm_factory else self._llm
+        except Exception:
+            return question
+        return with_llm_fallback(
+            client,
+            lambda llm: self._tailor(
+                llm, question, card, initial_request, last_answer, eligible_fields
+            ),
+            lambda: question,
+        )
 
     def _tailor(
         self,
@@ -235,6 +255,7 @@ class ClarificationQuestionRanker:
         card: RequirementCard,
         initial_request: str,
         last_answer: str | None,
+        eligible_fields: dict[str, int],
     ) -> ClarificationQuestion:
         context = {
             "initial_request": initial_request,
@@ -243,18 +264,34 @@ class ClarificationQuestionRanker:
             "base_prompt": question.prompt,
             "last_answer": last_answer,
             "default_options": question.quick_reply_options,
+            "eligible_questions": [
+                {
+                    "field_name": field,
+                    "base_prompt": FOCUSED_PROMPTS[field],
+                    "default_options": list(QUICK_REPLY_OPTIONS[field]),
+                }
+                for field in eligible_fields
+            ],
         }
         response = llm.chat(
             [
                 ChatMessage(
                     role="system",
                     content=CONSULTANT_PERSONA
-                    + "Tailor only the selected field; do not change the topic or answer it. "
-                    "Return JSON with prompt, beginner_prompt, advanced_prompt, rationale "
-                    "(nonempty "
-                    "strings), and suggested_answers (an array of concise alternative answers, "
-                    "not accepted facts). All prompts must ask the same architectural question. "
-                    "Use supplied facts to focus on remaining gaps; do not add speculative scope.",
+                    + FLIPPED_INTERACTION_PATTERN
+                    + "Select exactly one field_name from eligible_questions that best advances "
+                    "the user's goal; these are the applicable, unanswered decisions not yet "
+                    "asked in this pass. If only one is eligible, keep that field. The supplied "
+                    "field_name is the fallback priority. Tailor the question to the selected "
+                    "field without answering it. Return JSON with field_name, prompt, "
+                    "beginner_prompt, advanced_prompt, rationale (nonempty strings), "
+                    "blind_spots (0 to 3 concise strings describing relevant unconfirmed gaps "
+                    "for this question, at most 400 characters each), and suggested_answers "
+                    "(0 to 5 concise alternative answers, not accepted facts). All three "
+                    "prompts ask the same single decision at different detail levels. "
+                    "rationale explains why this matters to the goal and the downstream "
+                    "consequence of leaving it unclear. Use an empty blind_spots array if "
+                    "there are no grounded concerns. Do not add speculative scope.",
                 ),
                 ChatMessage(role="user", content=json.dumps(context)),
             ],
@@ -263,6 +300,9 @@ class ClarificationQuestionRanker:
         payload = json.loads(response.content)
         if not isinstance(payload, dict):
             raise ValueError("Expected tailored question object")
+        field_name = payload.get("field_name", question.field_name)
+        if not isinstance(field_name, str) or field_name not in eligible_fields:
+            raise ValueError("Selected question is not eligible")
         for key in ("prompt", "beginner_prompt", "advanced_prompt", "rationale"):
             if not isinstance(payload.get(key), str) or not 1 <= len(payload[key].strip()) <= 1600:
                 raise ValueError("Invalid tailored question text")
@@ -273,16 +313,28 @@ class ClarificationQuestionRanker:
             or any(not isinstance(a, str) or not 1 <= len(a.strip()) <= 400 for a in answers)
         ):
             raise ValueError("Invalid tailored question options")
-        result = question.model_copy(deep=True)
+        blind_spots = payload.get("blind_spots", [])
+        if (
+            not isinstance(blind_spots, list)
+            or len(blind_spots) > 3
+            or any(not isinstance(b, str) or not 1 <= len(b.strip()) <= 400 for b in blind_spots)
+        ):
+            raise ValueError("Invalid question blind spots")
+        result = self.build_question(
+            field_name,
+            question_number=question.question_number,
+            total_questions=question.total_questions,
+            rank=eligible_fields[field_name],
+        )
         result.prompt = payload["prompt"].strip()
         for version, key in zip(
             result.versions, ("beginner_prompt", "prompt", "advanced_prompt"), strict=True
         ):
             version.prompt = payload[key].strip()
-            if version.level == "beginner":
-                version.rationale = payload["rationale"].strip()
+            version.rationale = payload["rationale"].strip()
+            version.blind_spots = list(dict.fromkeys(b.strip() for b in blind_spots))
         # Context choices drive applicability; keep their stable labels.
-        if answers and question.field_name != "application_requirements.project_context":
+        if answers and field_name != "application_requirements.project_context":
             options = [
                 a.strip()
                 for a in answers
@@ -305,6 +357,8 @@ class ClarificationQuestionRanker:
             total_questions=result.total_questions,
             prompt=result.prompt,
             quick_reply_options=result.quick_reply_options,
+            rationale=result.versions[1].rationale,
+            blind_spots=result.versions[1].blind_spots,
         )
         return ClarificationQuestion.model_validate(result.model_dump())
 
@@ -320,8 +374,15 @@ def format_clarification_question(
     total_questions: int,
     prompt: str,
     quick_reply_options: list[str],
+    rationale: str | None = None,
+    blind_spots: list[str] | None = None,
 ) -> str:
     header = f"Quick question {question_number} of {total_questions}: {prompt}"
+    if rationale:
+        header += f"\nWhy this matters: {rationale}"
+    if blind_spots:
+        header += "\nPotential blind spots (unconfirmed):\n"
+        header += "\n".join(f"- {spot}" for spot in blind_spots)
     choices = "\n".join(f"- {option}" for option in quick_reply_options)
     body = f"{header}\nChoose one or more options and/or answer in your own words:\n{choices}"
     return textwrap.dedent(body).strip()
