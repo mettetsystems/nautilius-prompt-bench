@@ -39,6 +39,94 @@ Copy `.env.example` to `.env` at the repo root. Key variables:
 | `ARTIFACTS_PATH`   | `./data/artifacts`                   | Generated export files         |
 | `VITE_API_BASE_URL`| `http://127.0.0.1:8010`              | Frontend → API base URL        |
 
+### Maya-first startup
+
+By default, Nautilius checks **`http://127.0.0.1:8080/v1/models` before starting
+the API**. If an OpenAI-compatible model server is already running at Project
+Maya's usual address, it becomes the primary AI model default for that run,
+without a setup prompt or another model process. Detection uses the model-list
+response, not a process name: another compatible server at this address can also
+be reused.
+
+This check runs in `make ensure-llm`, `make dev-api`, `scripts/start-macos.sh`, and
+the FastAPI lifespan used by direct Uvicorn/container launches. The metadata GET
+uses a one-second HTTP timeout and does not generate text. The shell launchers
+also verify a chat completion before launching the API; direct Uvicorn startup
+selects the endpoint from metadata, with inference checked by `/health/llm` and
+normal model requests. Direct Uvicorn startup never starts a local model process.
+
+Startup applies these rules:
+
+1. `PROMPT_PIPER_LLM_ENABLED=false` or the `cpu-only` preset skips automatic
+   selection. Existing in-app AI assistance preferences remain in effect.
+2. With `PROMPT_PIPER_PREFER_MAYA=true` (the default), a valid model list at the
+   Maya address takes priority over the saved primary URL and preset. If the
+   saved `PROMPT_PIPER_LOCAL_CHAT_MODEL` appears in that list, it is kept;
+   otherwise the first advertised model is selected. A stale name such as
+   `llama` is not sent to Maya unless Maya actually advertises that name.
+3. The effective URL, model ID, and key are passed to the API, with local
+   auto-start disabled and the preset set to `custom`. The deployment profile
+   becomes `manual` for this run, so Maya is not required to implement llama.cpp's
+   `/props` endpoint. Its existing context window and memory allocation are not
+   changed or certified by this check. CPU similarity embeddings remain separate.
+4. `.env` and saved UI settings are **not rewritten**. On the next fresh launch,
+   if Maya is absent, the saved configuration is available again. Native shell
+   launchers then follow the existing readiness and local-model launch checks.
+   Disabling `PROMPT_PIPER_AUTO_START_LLM` alone does not disable Maya selection;
+   it only prohibits launching a model.
+5. Explicit **AI tooling API overrides** and dedicated **Ask The Locals API
+   overrides** in Settings still control their respective requests. Maya becomes
+   the underlying primary default, not a replacement for those explicit overrides.
+
+To keep your saved endpoint as the startup default:
+
+```env
+PROMPT_PIPER_PREFER_MAYA=false
+```
+
+To use authenticated Maya, set its dedicated key in `.env`:
+
+```env
+PROMPT_PIPER_MAYA_API_KEY=your-maya-key
+```
+
+If that key is unset and the saved `PROMPT_PIPER_LOCAL_BASE_URL` is the same
+normalized URL as Maya's, its `PROMPT_PIPER_LOCAL_API_KEY` is reused. A saved key
+for another provider/address is never sent to Maya. An explicitly empty Maya key
+disables that credential fallback. Keys are not printed in startup diagnostics.
+
+If a service is present but requires credentials, is loading, lists no usable
+model IDs, or fails to return a valid model list, startup stops with a diagnostic
+instead of starting another model. Check Maya's status/key and retry, or opt out
+to use your saved endpoint. The same no-replacement rule applies if the selected
+Maya model fails the launcher's inference check. No existing model server is
+stopped or restarted by this selection. Discovery cannot guarantee that a server
+has enough memory for all future requests.
+
+**Containers:** `127.0.0.1` refers to the API container itself. Podman Compose
+defaults the Maya check to `http://host.containers.internal:8080/v1`; the Compose
+service provides that host mapping. For Quadlets or other container launchers,
+set the following in their environment and provide the appropriate host mapping:
+
+```env
+PROMPT_PIPER_MAYA_BASE_URL=http://host.containers.internal:8080/v1
+```
+
+Maya must listen on an address reachable from that container; a host-only
+loopback bind may not be reachable through the container gateway. For native
+launches, leave this setting unset to check `127.0.0.1:8080`. The setting also
+accepts a full custom API prefix if your Maya deployment uses a proxy.
+
+Start Maya first, then run `make dev-api`. The startup diagnostic names the
+selected endpoint and model. Inspect the effective selection with:
+
+```bash
+curl http://127.0.0.1:8010/health/llm
+```
+
+This health check performs inference and reports the effective `endpoint` and
+`model_name`, including any explicit in-app tooling override.
+
 ### Local model wizard
 
 After `make install`, run the interactive setup wizard from the repo root:
@@ -77,7 +165,9 @@ services requiring authentication or reporting that they are loading/busy.
 Non-interactive preset setup fails with guidance to run the interactive wizard
 instead of silently choosing an endpoint. `make ensure-llm` and `make dev-api`
 repeat discovery before auto-start and also refuse an occupied model port.
-No existing server is stopped to make room. Discovery covers the checked URLs,
+The wizard's reuse prompt configures the saved fallback; automatic Maya selection
+at application startup follows the precedence above. No existing server is
+stopped to make room. Discovery covers the checked URLs,
 not every process or port on the machine; retain the free-RAM/VRAM budget checks
 and add nonstandard server URLs to the discovery list.
 
@@ -262,8 +352,9 @@ for the GPU scan menu, Hugging Face token field, and importing GGUFs from a loca
 
 ### Model readiness
 
-`make setup` now finishes by starting the configured local model and testing a real
-chat completion. `make dev-api` repeats this check before launching the API. If an
+`make setup` finishes by preferring a running Maya endpoint, otherwise using the
+configured model, and testing a real chat completion. `make dev-api` repeats this
+check before launching the API. If an
 enabled model is missing, cannot load, or cannot generate a completion, startup
 fails with a diagnostic instead of silently entering rule-based mode. Resolve the
 reported issue and rerun the command. Explicitly selected rule-based mode remains

@@ -11,7 +11,7 @@ pytest suite for API, services, and integration. Config: root `pyproject.toml` (
 | Optimization / gate | `test_token_optimizer.py`, `test_quality_gate.py`, `test_optimization_binding.py`, `test_requirement_capture.py`, `test_semantic_precision.py` |
 | Artifacts / export | `test_artifacts.py`, `test_artifact_export.py` |
 | Hardening / inference | `test_hardening.py`, `test_external_inference.py` |
-| Setup / LLM | `test_setup_wizard.py`, `test_ensure_llm.py`, `test_llm_health.py` |
+| Setup / LLM | `test_setup_wizard.py`, `test_ensure_llm.py`, `test_maya_startup.py`, `test_llm_health.py` |
 
 | Directory | README |
 |-----------|--------|

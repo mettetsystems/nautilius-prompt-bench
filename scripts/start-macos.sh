@@ -18,7 +18,8 @@ for port in (8010, 5174):
     with socket.socket() as sock:
         sock.bind(('127.0.0.1', port))
 PY
-"$PYTHON" -m prompt_piper.setup.ensure_llm --strict
+MODEL_ENV="$("$PYTHON" -m prompt_piper.setup.ensure_llm --shell --strict)"
+eval "$MODEL_ENV"
 API_PID=""
 WEB_PID=""
 cleanup() {

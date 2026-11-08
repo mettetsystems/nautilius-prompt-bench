@@ -48,6 +48,7 @@ services:
       LEXICON_VECTOR_INDEX_PATH: /app/data/lexicon/precision_vectors.json
       AUDIT_LOG_PATH: /exports/audit
       PROMPT_PIPER_LOCAL_BASE_URL: ${PROMPT_PIPER_LOCAL_BASE_URL:-http://host.containers.internal:8080/v1}
+      PROMPT_PIPER_MAYA_BASE_URL: ${PROMPT_PIPER_MAYA_BASE_URL:-http://host.containers.internal:8080/v1}
       PROMPT_PIPER_EXTERNAL_INFERENCE_ENABLED: ${PROMPT_PIPER_EXTERNAL_INFERENCE_ENABLED:-false}
       PROMPT_PIPER_EXTERNAL_ENABLED: ${PROMPT_PIPER_EXTERNAL_ENABLED:-false}
     ports:

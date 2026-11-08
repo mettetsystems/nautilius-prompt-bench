@@ -7,7 +7,7 @@ Bash helpers invoked by `Makefile` targets. Run from repo root unless noted.
 | `setup.sh` | `make setup` | Wizard + optional GGUF download + lexicon |
 | `download-model.sh` | `make download-model` | Download GGUF from `.env` into `data/models/` |
 | `dev-api.sh` | `make dev-api` | `ensure_llm` + uvicorn with reload on API dirs only |
-| `ensure-llm.sh` | `make ensure-llm` | GPU probe and llama-server start |
+| `ensure-llm.sh` | `make ensure-llm` | Prefer running Maya, verify inference, otherwise check local launch |
 | `shutdown.sh` | `make shutdown` (`make stop`) | SIGTERM/SIGKILL native API+Vite, llama-server, Quadlets, Podman compose |
 | `dev-up.sh` | `make podman-up` | Create export dirs, `podman compose up` |
 | `dev-down.sh` | `make podman-down` | Stop compose stack |
@@ -40,6 +40,12 @@ make export
 ```
 
 All scripts use `set -euo pipefail` and resolve repo root relative to their own path.
+
+`dev-api.sh` and `start-macos.sh` consume the safely quoted exports from
+`ensure_llm --shell --strict`, including the detected model ID and credentials,
+before starting Uvicorn. Their startup default is an existing Maya-compatible
+server at `127.0.0.1:8080`; see
+[Maya-first startup](../docs/local-setup.md#maya-first-startup).
 
 ### Hardware changes
 

@@ -27,3 +27,11 @@ uvicorn prompt_piper_api.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 Session orchestration is centralized in `services/session_service.py`; allowed actions per state are in `services/state_transitions.py`.
+
+Before serving requests, the FastAPI lifespan calls
+`services/model_startup.py` to prefer a running Maya-compatible endpoint at
+`http://127.0.0.1:8080/v1`. It refreshes the settings/client caches so requests use
+the advertised model. This covers direct Uvicorn launches as well as shell
+launchers, without writing `.env` or starting model processes. See
+[Maya-first startup](../../../docs/local-setup.md#maya-first-startup) for configuration
+and failure behavior.

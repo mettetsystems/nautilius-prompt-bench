@@ -10,11 +10,13 @@ from prompt_piper_api.config import get_settings
 from prompt_piper_api.db import init_db
 from prompt_piper_api.routes import health_router, registry_router, sessions_router, settings_router
 from prompt_piper_api.services.logging_config import configure_logging
+from prompt_piper_api.services.model_startup import configure_preferred_endpoint
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     configure_logging()
+    configure_preferred_endpoint()
     settings = get_settings()
     for path in (
         settings.registry_path,

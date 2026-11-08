@@ -118,6 +118,11 @@ class Settings(BaseSettings):
         alias="PROMPT_PIPER_LOCAL_EMBED_MODEL",
     )
     prompt_piper_local_api_key: str | None = Field(default=None, alias="PROMPT_PIPER_LOCAL_API_KEY")
+    prompt_piper_prefer_maya: bool = Field(default=True, alias="PROMPT_PIPER_PREFER_MAYA")
+    prompt_piper_maya_base_url: str = Field(
+        default="http://127.0.0.1:8080/v1", alias="PROMPT_PIPER_MAYA_BASE_URL",
+    )
+    prompt_piper_maya_api_key: str | None = Field(default=None, alias="PROMPT_PIPER_MAYA_API_KEY")
     prompt_piper_external_enabled: bool = Field(
         default=False,
         validation_alias=AliasChoices(

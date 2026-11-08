@@ -17,6 +17,18 @@ def isolate_model_endpoint_discovery(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("prompt_piper.setup.wizard.probe_endpoint", lambda *a, **k: None)
     monkeypatch.setattr("prompt_piper.setup.ensure_llm.discover_endpoints", lambda _: [])
     monkeypatch.setattr("prompt_piper.setup.ensure_llm.port_is_listening", lambda _: False)
+    monkeypatch.setattr("prompt_piper.setup.preferred_endpoint.probe_endpoint", lambda *a, **k: None)
+    monkeypatch.setattr("prompt_piper.setup.preferred_endpoint.port_is_listening", lambda _: False)
+    # ensure_llm changes process env; restore it between tests, including failure paths.
+    monkeypatch.setenv("PROMPT_PIPER_LLM_ENABLED", "true")
+    for key in (
+        "PROMPT_PIPER_LOCAL_BASE_URL", "PROMPT_PIPER_LOCAL_CHAT_MODEL",
+        "PROMPT_PIPER_LOCAL_EMBED_MODEL", "PROMPT_PIPER_LOCAL_API_KEY",
+        "PROMPT_PIPER_LOCAL_MODEL_PRESET", "PROMPT_PIPER_DEPLOYMENT_PROFILE",
+        "PROMPT_PIPER_AUTO_START_LLM", "PROMPT_PIPER_PREFER_MAYA",
+        "PROMPT_PIPER_MAYA_BASE_URL", "PROMPT_PIPER_MAYA_API_KEY",
+    ):
+        monkeypatch.delenv(key, raising=False)
 
 
 @pytest.fixture(autouse=True)

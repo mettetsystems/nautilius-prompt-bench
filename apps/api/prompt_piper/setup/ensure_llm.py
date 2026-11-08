@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import argparse
 import os
+import shlex
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
@@ -25,6 +26,10 @@ from prompt_piper.setup.llama_launcher import (
     stop_managed_server,
     wait_for_server,
 )
+from prompt_piper.setup.preferred_endpoint import (
+    PreferredEndpointUnavailable,
+    select_preferred_endpoint,
+)
 from prompt_piper.setup.readiness import probe_inference, probe_specification_context
 
 EnsureMode = Literal["gpu", "cpu", "cpu_only", "already_running", "skipped", "blocked"]
@@ -35,6 +40,7 @@ class EnsureLlmResult:
     mode: EnsureMode
     llm_enabled: bool
     message: str
+    env_overrides: dict[str, str] = field(default_factory=dict, repr=False)
 
 
 def _truthy(value: str | None, *, default: bool = False) -> bool:
@@ -67,7 +73,7 @@ def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
     )
     preset = _env_lookup(env, "PROMPT_PIPER_LOCAL_MODEL_PRESET")
     deployment_profile = _env_lookup(env, "PROMPT_PIPER_DEPLOYMENT_PROFILE") or "manual"
-    llm_enabled = _truthy(env.get("PROMPT_PIPER_LLM_ENABLED"), default=True)
+    llm_enabled = _truthy(_env_lookup(env, "PROMPT_PIPER_LLM_ENABLED"), default=True)
     allow_cpu_llm = _truthy(
         env.get("PROMPT_PIPER_ALLOW_CPU_LLM"),
         default=_truthy(os.getenv("PROMPT_PIPER_ALLOW_CPU_LLM"), default=False),
@@ -84,15 +90,29 @@ def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
     base_url = _env_lookup(env, "PROMPT_PIPER_LOCAL_BASE_URL") or "http://127.0.0.1:8080/v1"
     model = _env_lookup(env, "PROMPT_PIPER_LOCAL_CHAT_MODEL") or "local-model"
     api_key = _env_lookup(env, "PROMPT_PIPER_LOCAL_API_KEY")
+    env_overrides: dict[str, str] = {}
+    preference_message = ""
+
+    try:
+        preferred = select_preferred_endpoint({**os.environ, **env})
+    except PreferredEndpointUnavailable as exc:
+        os.environ["PROMPT_PIPER_LLM_ENABLED"] = "false"
+        return EnsureLlmResult("blocked", False, str(exc))
+    if preferred is not None:
+        base_url, model, api_key = preferred.base_url, preferred.model, preferred.api_key
+        env_overrides = preferred.environment()
+        os.environ.update(env_overrides)
+        deployment_profile = "manual"  # Do not impose llama.cpp /props on Maya.
+        preference_message = preferred.message + " "
 
     def verify() -> EnsureLlmResult:
         ok, message = probe_inference(base_url, model, api_key, wait_seconds=300)
         if ok and deployment_profile == "specification":
             ok, message = probe_specification_context(base_url, api_key)
         os.environ["PROMPT_PIPER_LLM_ENABLED"] = "true" if ok else "false"
-        return EnsureLlmResult("already_running", ok, message)
+        return EnsureLlmResult("already_running", ok, preference_message + message, env_overrides)
 
-    if not auto_start or preset == "custom" or is_server_healthy(base_url):
+    if preferred is not None or not auto_start or preset == "custom" or is_server_healthy(base_url):
         return verify()
 
     from urllib.parse import urlsplit
@@ -250,18 +270,19 @@ def ensure_local_llm(env_path: Path | None = None) -> EnsureLlmResult:
 
 def shell_export(result: EnsureLlmResult) -> str:
     value = "true" if result.llm_enabled else "false"
-    return f'export PROMPT_PIPER_LLM_ENABLED={value}'
+    values = {**result.env_overrides, "PROMPT_PIPER_LLM_ENABLED": value}
+    return "\n".join(f"export {key}={shlex.quote(value)}" for key, value in values.items())
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Detect GPU, start llama-server when possible, otherwise enable CPU-only mode.",
+        description="Prefer running Maya, otherwise verify or safely start the configured model.",
     )
     parser.add_argument("--env-file", type=Path, default=None)
     parser.add_argument(
         "--shell",
         action="store_true",
-        help="Print shell export statements for PROMPT_PIPER_LLM_ENABLED.",
+        help="Print safely quoted shell exports for model readiness and the selected endpoint.",
     )
     parser.add_argument(
         "--stop",

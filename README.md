@@ -76,8 +76,8 @@ On **low-VRAM GPUs** (e.g. GTX 1050 2GB), `build-lexicon-index` forces CPU embed
 Run the API and web app in separate terminals (from a host shell where `nvidia-smi` / `rocm-smi` works):
 
 ```bash
-# Terminal 1 — FastAPI on :8010 (not PromptPiper's :8000); ensure_llm starts llama-server when GPU + GGUF + binary exist
-make ensure-llm   # optional dry-run of the GPU/model probe
+# Terminal 1 — FastAPI on :8010; reuse running Maya at :8080 first
+make ensure-llm   # optional readiness check; can start the configured model if Maya is absent
 make dev-api
 
 # Terminal 2 — Vite dev server on :5174; proxies API routes to :8010
@@ -274,7 +274,24 @@ podman build -f infra/Containerfile.web -t prompt-piper-web .
 
 Nautilius Prompting Workbench talks to an **OpenAI-compatible** server for clarification suggestions, draft generation, and optional chat. Clarification selection is deterministic. When AI assistance is enabled, the configured tooling model tailors each newly selected architectural question; unavailable or invalid responses fall back to predefined questions. Refreshing a pending question does not query the model. **Get model suggestions** and **Ask The Locals** remain optional.
 
-`make dev-api` runs `ensure_llm`: it detects GPU memory, can start `llama-server` with a configured GGUF, or falls back to CPU-only mode (rule-based clarification). Stop a managed server with `make llama-down`, or stop the whole local app with `make shutdown`.
+**Maya is the default when it is already running.** Before the API starts serving
+requests, Nautilius checks `http://127.0.0.1:8080/v1/models` and uses an advertised
+model automatically. You do not need to rerun setup or replace a stale model name
+in `.env`. The selected URL, model, and credentials apply to the current process;
+your saved fallback configuration stays intact. No second local model is started.
+
+This works with `make dev-api`, the native macOS launcher, and direct Uvicorn
+startup. If Maya is absent, startup uses the saved configuration. Explicit
+rule-based mode is preserved. Set `PROMPT_PIPER_PREFER_MAYA=false` to keep your
+saved endpoint as the startup default instead. See
+[Maya-first startup](docs/local-setup.md#maya-first-startup) for authentication,
+model selection, container addresses, failure behavior, and configuration precedence.
+
+`make dev-api` also runs `ensure_llm` to verify a real chat completion before
+launching the API. If Maya is absent, it can start the configured GGUF after GPU
+and memory checks; existing-server conflict checks still apply. Stop a managed
+server with `make llama-down`, or stop the local app with `make shutdown`.
+Maya remains managed by its own launcher.
 
 **Native dev** — in `.env`:
 

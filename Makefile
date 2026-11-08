@@ -18,7 +18,7 @@ help:
 	@echo "  make setup-lexicon-embed Install sentence-transformers for vector index"
 	@echo "  make build-lexicon-index Build semantic precision vector index (CPU embed)"
 	@echo "  make setup-lexicon-all WordNet + embeddings + index (skips index if present)"
-	@echo "  make ensure-llm        Probe GPU and start llama-server, or fall back to CPU mode"
+	@echo "  make ensure-llm        Reuse running Maya first; otherwise verify/start the configured model"
 	@echo "  make llama-down        Stop Nautilius-managed llama-server"
 	@echo "  make shutdown          Stop API, Vite, llama-server, Podman, and Quadlets"
 	@echo "  make stop              Same as make shutdown"
@@ -27,7 +27,7 @@ help:
 	@echo "  make export            Build container images and save an offline .tar bundle"
 	@echo "                         (add WITH_AI=1 to include llama.cpp server image)"
 	@echo "  make dev               Reminders for running API + web (two terminals)"
-	@echo "  make dev-api           Run FastAPI (auto-starts local SLM when GPU available)"
+	@echo "  make dev-api           Run FastAPI (prefers running Maya and verifies model readiness)"
 	@echo "  make dev-web           Run Vite dev server"
 	@echo "  make test              Run backend and integration tests"
 	@echo "  make eval              Run local pre-inference quality gate evals"
@@ -49,7 +49,7 @@ install: install-api install-web setup-lexicon-embed setup-lexicon
 	@echo "Next (from repo root):"
 	@echo "  make setup            # choose CPU-only or local SLM; offers GGUF download"
 	@echo "  make download-model   # if you skipped download during setup"
-	@echo "  make ensure-llm       # needs GPU + llama-server + GGUF in data/models/"
+	@echo "  make ensure-llm       # verify preferred Maya or the configured model"
 	@echo "  make dev-api && make dev-web"
 
 setup:
