@@ -1,8 +1,8 @@
-import { Link } from "react-router-dom";
+import { Button, Content, DataList, DataListCell, DataListItem, DataListItemCells, DataListItemRow, Grid, GridItem } from "@patternfly/react-core";
 import type { SessionDetailResponse } from "../api/types";
 import { ApiError, formatApiError } from "../api/http";
 import { useOptimizeSession } from "../api/hooks";
-import { PageHeader, Panel, WarningBanner, DraftBlock, ErrorBanner } from "../components/ui";
+import { ButtonRow, DraftBlock, ErrorBanner, LinkButton, PageFrame, PageHeader, Panel, WarningBanner } from "../components/ui";
 
 interface SimilarityCheckPageProps {
   sessionId: string;
@@ -26,7 +26,7 @@ export function SimilarityCheckPage({
         : null;
 
   return (
-    <div className="page">
+    <PageFrame>
       <PageHeader
         title="Similarity check"
         subtitle="Compare this prompt against indexed patterns in the local registry before optimization."
@@ -38,79 +38,83 @@ export function SimilarityCheckPage({
         <WarningBanner message={session.similarity_warning} />
       )}
 
-      <div className="grid-two">
-        <Panel title="Current canonical draft">
-          {session.current_draft ? (
-            <DraftBlock body={session.current_draft.body} label="Canonical" />
-          ) : (
-            <p className="muted">No draft loaded.</p>
-          )}
-          {session.prompt_id && (
-            <p className="muted">
-              Registry ID: <code>{session.prompt_id}</code>
-            </p>
-          )}
-        </Panel>
+      <Grid hasGutter md={6}>
+        <GridItem>
+          <Panel title="Current canonical draft">
+            {session.current_draft ? (
+              <DraftBlock body={session.current_draft.body} label="Canonical" />
+            ) : (
+              <Content component="p">No draft loaded.</Content>
+            )}
+            {session.prompt_id && (
+              <Content component="small">
+                Registry ID: <code>{session.prompt_id}</code>
+              </Content>
+            )}
+          </Panel>
+        </GridItem>
 
-        <Panel title="Similar matches">
-          {session.similarity_matches.length === 0 ? (
-            <p className="muted">No close matches found in the local index.</p>
-          ) : (
-            <ul className="item-list">
-              {session.similarity_matches.map((match) => (
-                <li key={`${match.prompt_id}-${match.document_kind ?? "unknown"}`}>
-                  <div className="item-row">
-                    <div>
-                      <strong>{match.title}</strong>
-                      <p className="item-meta">
-                        <code>{match.prompt_id}</code> · score{" "}
-                        {Math.round(match.similarity_score * 100)}%
-                      </p>
-                      {match.artifact_paths.canonical_txt && (
-                        <p className="item-meta">
-                          Artifact: <code>{match.artifact_paths.canonical_txt}</code>
-                        </p>
-                      )}
-                      {match.delta && <p className="muted">{match.delta}</p>}
-                    </div>
-                    <Link to={`/registry/${match.prompt_id}`} className="button secondary">
-                      Review
-                    </Link>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Panel>
-      </div>
+        <GridItem>
+          <Panel title="Similar matches">
+            {session.similarity_matches.length === 0 ? (
+              <Content component="p">No close matches found in the local index.</Content>
+            ) : (
+              <DataList aria-label="Similar matches">
+                {session.similarity_matches.map((match) => (
+                  <DataListItem key={`${match.prompt_id}-${match.document_kind ?? "unknown"}`}>
+                    <DataListItemRow>
+                      <DataListItemCells
+                        dataListCells={[
+                          <DataListCell key="match">
+                            <strong>{match.title}</strong>
+                            <Content component="small">
+                              <code>{match.prompt_id}</code> · score {Math.round(match.similarity_score * 100)}%
+                            </Content>
+                            {match.artifact_paths.canonical_txt && (
+                              <Content component="small">
+                                Artifact: <code>{match.artifact_paths.canonical_txt}</code>
+                              </Content>
+                            )}
+                            {match.delta && <Content component="small">{match.delta}</Content>}
+                          </DataListCell>,
+                          <DataListCell key="review" alignRight>
+                            <LinkButton to={`/registry/${match.prompt_id}`} variant="secondary">
+                              Review
+                            </LinkButton>
+                          </DataListCell>,
+                        ]}
+                      />
+                    </DataListItemRow>
+                  </DataListItem>
+                ))}
+              </DataList>
+            )}
+          </Panel>
+        </GridItem>
+      </Grid>
 
       {!readOnly && (
-      <Panel title="Next step">
-        {topMatch && hasWarning ? (
-          <p>
-            A similar pattern exists for <code>{topMatch.prompt_id}</code>. Review it or continue
-            to token optimization.
-          </p>
-        ) : (
-          <p>No blocking similarity issues detected. Continue to optimization.</p>
-        )}
-        <div className="form-actions">
-          {topMatch && (
-            <Link to={`/registry/${topMatch.prompt_id}`} className="button secondary">
-              Review matched prompt
-            </Link>
+        <Panel title="Next step">
+          {topMatch && hasWarning ? (
+            <Content component="p">
+              A similar pattern exists for <code>{topMatch.prompt_id}</code>. Review it or continue
+              to token optimization.
+            </Content>
+          ) : (
+            <Content component="p">No blocking similarity issues detected. Continue to optimization.</Content>
           )}
-          <button
-            type="button"
-            className="button primary"
-            disabled={optimize.isPending}
-            onClick={() => void optimize.mutateAsync()}
-          >
-            {optimize.isPending ? "Starting optimization…" : "Continue to optimization"}
-          </button>
-        </div>
-      </Panel>
+          <ButtonRow>
+            {topMatch && (
+              <LinkButton to={`/registry/${topMatch.prompt_id}`} variant="secondary">
+                Review matched prompt
+              </LinkButton>
+            )}
+            <Button variant="primary" isDisabled={optimize.isPending} onClick={() => void optimize.mutateAsync()}>
+              {optimize.isPending ? "Starting optimization…" : "Continue to optimization"}
+            </Button>
+          </ButtonRow>
+        </Panel>
       )}
-    </div>
+    </PageFrame>
   );
 }

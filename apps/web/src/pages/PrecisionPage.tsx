@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button, Checkbox, Content, Grid, GridItem, ToggleGroup, ToggleGroupItem } from "@patternfly/react-core";
 import { formatApiError } from "../api/http";
 import {
   queryKeys,
@@ -12,11 +13,15 @@ import { fetchPrecisionReview } from "../api/sessions";
 import type { PrecisionSuggestResponse, VagueLanguageFinding } from "../api/types";
 import { formatPercent, sessionPath } from "../lib/sessionRouting";
 import {
+  ButtonRow,
   ErrorBanner,
   HighlightedDraft,
+  LinkButton,
   LoadingState,
+  PageFrame,
   PageHeader,
   Panel,
+  TextAreaField,
 } from "../components/ui";
 
 interface PrecisionPageProps {
@@ -107,14 +112,18 @@ export function PrecisionPage({ sessionId }: PrecisionPageProps) {
   }, [current]);
 
   if (sessionQuery.isLoading || precisionQuery.isLoading) {
-    return <LoadingState label="Loading precision review…" />;
+    return (
+      <PageFrame>
+        <LoadingState label="Loading precision review…" />
+      </PageFrame>
+    );
   }
 
   if (sessionQuery.isError || !sessionQuery.data) {
     return (
-      <div className="page narrow">
+      <PageFrame limited>
         <ErrorBanner message={formatApiError(sessionQuery.error, "Session unavailable.")} />
-      </div>
+      </PageFrame>
     );
   }
 
@@ -124,9 +133,9 @@ export function PrecisionPage({ sessionId }: PrecisionPageProps) {
 
   if (precisionQuery.isError || !precisionQuery.data) {
     return (
-      <div className="page narrow">
+      <PageFrame limited>
         <ErrorBanner message={formatApiError(precisionQuery.error, "Precision review failed.")} />
-      </div>
+      </PageFrame>
     );
   }
 
@@ -166,26 +175,24 @@ export function PrecisionPage({ sessionId }: PrecisionPageProps) {
 
   if (findings.length === 0) {
     return (
-      <div className="page">
+      <PageFrame>
         <PageHeader
           title="Semantic precision"
           subtitle="No vague language remains in the optimized prompt."
         />
         <Panel>
-          <p>
+          <Content component="p">
             Semantic precision score: {formatPercent(review.score)} (threshold{" "}
             {formatPercent(review.threshold)}).
-          </p>
-          <Link className="button primary" to={sessionPath(sessionId, "optimize")}>
-            Back to optimization
-          </Link>
+          </Content>
+          <LinkButton to={sessionPath(sessionId, "optimize")}>Back to optimization</LinkButton>
         </Panel>
-      </div>
+      </PageFrame>
     );
   }
 
   return (
-    <div className="page">
+    <PageFrame>
       <PageHeader
         title="Refine semantic precision"
         subtitle={`Finding ${index + 1} of ${findings.length} · score ${formatPercent(review.score)} · ${
@@ -197,117 +204,93 @@ export function PrecisionPage({ sessionId }: PrecisionPageProps) {
         }`}
       />
 
-      <div className="grid-two">
-        <Panel title="Optimized prompt">
-          <HighlightedDraft
-            body={review.optimized_body}
-            label="Optimized"
-            highlight={highlight}
-          />
-          <p className="muted">
-            Vague {current?.category === "lazy_adjective" ? "adjective" : "noun"}:{" "}
-            <strong>{current?.term}</strong>
-            {current ? ` (line ${current.line_number})` : ""}
-          </p>
-        </Panel>
+      <Grid hasGutter md={6}>
+        <GridItem>
+          <Panel title="Optimized prompt">
+            <HighlightedDraft body={review.optimized_body} label="Optimized" highlight={highlight} />
+            <Content component="p">
+              Vague {current?.category === "lazy_adjective" ? "adjective" : "noun"}:{" "}
+              <strong>{current?.term}</strong>
+              {current ? ` (line ${current.line_number})` : ""}
+            </Content>
+          </Panel>
+        </GridItem>
 
-        <Panel title="Choose a precise replacement">
-          <label>
-            <input
-              type="checkbox"
-              checked={useLlm}
-              onChange={(event) => setUseLlm(event.target.checked)}
+        <GridItem>
+          <Panel title="Choose a precise replacement">
+            <Checkbox
+              id="use-ai-tooling"
+              label="Use AI tooling model"
+              isChecked={useLlm}
+              onChange={(_event, checked) => setUseLlm(checked)}
             />
-            Use AI tooling model
-          </label>
-          <p className="muted">
-            {useLlm
-              ? "Uses your current AI tooling model with the full optimized prompt. CPU-only suggestions are available if the model is unavailable."
-              : "CPU-only: WordNet, glossary, and available vector suggestions."}
-          </p>
-          {suggestError && <ErrorBanner message={suggestError} />}
-          {applyError && <ErrorBanner message={applyError} />}
+            <Content component="small">
+              {useLlm
+                ? "Uses your current AI tooling model with the full optimized prompt. CPU-only suggestions are available if the model is unavailable."
+                : "CPU-only: WordNet, glossary, and available vector suggestions."}
+            </Content>
+            {suggestError && <ErrorBanner message={suggestError} />}
+            {applyError && <ErrorBanner message={applyError} />}
 
-          {suggestionsLoading && (
-            <p className="muted">Loading replacement suggestions…</p>
-          )}
+            {suggestionsLoading && <Content component="small">Loading replacement suggestions…</Content>}
 
-          {suggestions?.message && !suggestionsLoading && (
-            <p className="muted">{suggestions.message}</p>
-          )}
+            {suggestions?.message && !suggestionsLoading && (
+              <Content component="small">{suggestions.message}</Content>
+            )}
 
-          {!suggestionsLoading && suggestions && suggestions.suggested_replacements.length > 0 && (
-            <div className="quick-replies" role="radiogroup" aria-label="Suggested replacements">
-              {suggestions.suggested_replacements.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  className={
-                    selected === option && !custom.trim()
-                      ? "button secondary is-selected"
-                      : "button secondary"
-                  }
-                  disabled={isApplying}
-                  aria-pressed={selected === option && !custom.trim()}
-                  onClick={() => {
-                    setSelected(option);
-                    setCustom("");
-                  }}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-          )}
+            {!suggestionsLoading && suggestions && suggestions.suggested_replacements.length > 0 && (
+              <ToggleGroup aria-label="Suggested replacements">
+                {suggestions.suggested_replacements.map((option) => (
+                  <ToggleGroupItem
+                    key={option}
+                    text={option}
+                    isSelected={selected === option && !custom.trim()}
+                    isDisabled={isApplying}
+                    onChange={() => {
+                      setSelected(option);
+                      setCustom("");
+                    }}
+                  />
+                ))}
+              </ToggleGroup>
+            )}
 
-          <label className="field">
-            <span>Or enter your own word or phrase</span>
-            <textarea
-              ref={customInputRef}
+            <TextAreaField
+              id="custom-replacement"
+              label="Or enter your own word or phrase"
+              inputRef={customInputRef}
               rows={3}
-              className="input"
               value={custom}
-              disabled={isApplying}
+              isDisabled={isApplying}
               placeholder="Replace the highlighted word with a word or a short phrase"
-              onChange={(event) => {
-                setCustom(event.target.value);
+              onChange={(value) => {
+                setCustom(value);
                 setSelected("");
               }}
             />
-          </label>
 
-          <div className="button-row">
-            <button
-              type="button"
-              className="button"
-              disabled={isApplying || index === 0}
-              onClick={() => setIndex((value) => Math.max(0, value - 1))}
-            >
-              Previous
-            </button>
-            <button
-              type="button"
-              className="button primary"
-              disabled={isApplying || !replacement}
-              onClick={() => void handleApply()}
-            >
-              {apply.isPending ? "Applying…" : "Apply and continue"}
-            </button>
-            <button
-              type="button"
-              className="button"
-              disabled={isApplying || index >= findings.length - 1}
-              onClick={() => setIndex((value) => Math.min(findings.length - 1, value + 1))}
-            >
-              Skip for now
-            </button>
-          </div>
-        </Panel>
-      </div>
+            <ButtonRow>
+              <Button variant="secondary" isDisabled={isApplying || index === 0} onClick={() => setIndex((value) => Math.max(0, value - 1))}>
+                Previous
+              </Button>
+              <Button variant="primary" isDisabled={isApplying || !replacement} onClick={() => void handleApply()}>
+                {apply.isPending ? "Applying…" : "Apply and continue"}
+              </Button>
+              <Button
+                variant="secondary"
+                isDisabled={isApplying || index >= findings.length - 1}
+                onClick={() => setIndex((value) => Math.min(findings.length - 1, value + 1))}
+              >
+                Skip for now
+              </Button>
+            </ButtonRow>
+          </Panel>
+        </GridItem>
+      </Grid>
 
-      <p className="muted">
+      <Content component="p">
         <Link to={sessionPath(sessionId, "optimize")}>Return to optimization</Link>
-      </p>
-    </div>
+      </Content>
+    </PageFrame>
   );
 }

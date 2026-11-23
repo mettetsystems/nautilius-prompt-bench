@@ -1,3 +1,4 @@
+import { Alert, Button, Content } from "@patternfly/react-core";
 import { formatApiError } from "../api/http";
 import {
   useReopenForEdit,
@@ -64,22 +65,16 @@ export function WorkflowReopenActions({ sessionId, activeStep }: WorkflowReopenA
       : null;
 
   return (
-    <div className="callout review-reopen-actions">
-      <strong>{copy.title}</strong>
+    <Alert variant="warning" isInline role="status" title={copy.title}>
       <p>{copy.description}</p>
       {error && <ErrorBanner message={error} />}
-      <button
-        type="button"
-        className="button primary"
-        disabled={mutation.isPending}
-        onClick={() => void mutation.mutateAsync()}
-      >
+      <Button variant="primary" isDisabled={mutation.isPending} onClick={() => void mutation.mutateAsync()}>
         {mutation.isPending ? copy.pending : copy.button}
-      </button>
-      <p className="muted">
+      </Button>
+      <Content component="small">
         After re-opening, you can edit {SESSION_STEP_LABELS[activeStep].toLowerCase()} here without
         returning to the latest step first.
-      </p>
-    </div>
+      </Content>
+    </Alert>
   );
 }

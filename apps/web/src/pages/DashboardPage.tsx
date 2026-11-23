@@ -2,6 +2,26 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import {
+  Button,
+  Content,
+  DataList,
+  DataListCell,
+  DataListItem,
+  DataListItemCells,
+  DataListItemRow,
+  FormGroup,
+  FormSelect,
+  FormSelectOption,
+  Grid,
+  GridItem,
+  Modal,
+  ModalBody,
+  ModalFooter,
+  ModalHeader,
+  ModalVariant,
+  SearchInput,
+} from "@patternfly/react-core";
+import {
   queryKeys,
   useDeleteSession,
   useRegistryPrompts,
@@ -13,7 +33,7 @@ import type { RecentSessionEntry } from "../api/types";
 import { filterRegistryPrompts } from "../lib/registrySearch";
 import { loadRecentSessions } from "../lib/recentSessions";
 import { formatDate, sessionPath, sessionStepForState } from "../lib/sessionRouting";
-import { ErrorBanner, LoadingState, PageHeader, Panel, WarningBanner } from "../components/ui";
+import { ErrorBanner, LinkButton, LoadingState, PageFrame, PageHeader, Panel, WarningBanner } from "../components/ui";
 import { StatusBadge } from "../components/StatusBadge";
 
 export function DashboardPage() {
@@ -28,19 +48,19 @@ export function DashboardPage() {
   const deleteSession = useDeleteSession();
   const [registrySearch, setRegistrySearch] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<RecentSessionEntry | null>(null);
 
-  async function handleDeleteSession(session: RecentSessionEntry) {
-    const confirmed = window.confirm(
-      `Delete “${session.title}”? This removes the session from this machine. Finalized registry prompts are kept.`,
-    );
-    if (!confirmed) {
+  async function confirmDelete() {
+    if (!pendingDelete) {
       return;
     }
     setDeleteError(null);
     try {
-      await deleteSession.mutateAsync(session.id);
+      await deleteSession.mutateAsync(pendingDelete.id);
+      setPendingDelete(null);
     } catch (error) {
       setDeleteError(formatApiError(error, "Could not delete session."));
+      setPendingDelete(null);
     }
   }
 
@@ -63,15 +83,11 @@ export function DashboardPage() {
   const registrySearchActive = registrySearch.trim().length > 0;
 
   return (
-    <div className="page">
+    <PageFrame>
       <PageHeader
         title="Dashboard"
         subtitle="Recent design sessions and finalized prompts on this machine."
-        actions={
-          <Link to="/sessions/new" className="button primary">
-            New session
-          </Link>
-        }
+        actions={<LinkButton to="/sessions/new">New session</LinkButton>}
       />
 
       {sessionsWithWarnings.length > 0 && (
@@ -82,14 +98,13 @@ export function DashboardPage() {
 
       {configuredEndpoints.length > 0 && (
         <Panel title="Default external API">
-          <label className="field">
-            <span>Used for send-to-model unless overridden on the Complete step</span>
-            <select
-              className="select-input"
+          <FormGroup label="Used for send-to-model unless overridden on the Complete step" fieldId="default-endpoint">
+            <FormSelect
+              id="default-endpoint"
               value={userSettings.data?.default_api_endpoint_id ?? ""}
-              disabled={!userSettings.data || saveSettings.isPending}
-              onChange={(event) => {
-                const value = event.target.value || null;
+              isDisabled={!userSettings.data || saveSettings.isPending}
+              onChange={(_event, value) => {
+                const next = value || null;
                 if (!userSettings.data) {
                   return;
                 }
@@ -98,7 +113,7 @@ export function DashboardPage() {
                   precision_warning_threshold: userSettings.data.precision_warning_threshold,
                   similarity_time_scope_index: userSettings.data.similarity_time_scope_index,
                   clarification_versions: userSettings.data.clarification_versions,
-                  default_api_endpoint_id: value,
+                  default_api_endpoint_id: next,
                   ai_tooling_api_override: {
                     label: userSettings.data.ai_tooling_api_override.label,
                     base_url: userSettings.data.ai_tooling_api_override.base_url,
@@ -118,135 +133,156 @@ export function DashboardPage() {
                 });
               }}
             >
-              <option value="">Select an endpoint</option>
+              <FormSelectOption value="" label="Select an endpoint" />
               {configuredEndpoints.map((endpoint) => (
-                <option key={endpoint.id} value={endpoint.id}>
-                  {endpoint.label || endpoint.chat_model || endpoint.base_url}
-                </option>
+                <FormSelectOption
+                  key={endpoint.id}
+                  value={endpoint.id}
+                  label={endpoint.label || endpoint.chat_model || endpoint.base_url}
+                />
               ))}
-            </select>
-          </label>
+            </FormSelect>
+          </FormGroup>
         </Panel>
       )}
 
-      <div className="grid-two">
-        <Panel title="Recent sessions">
-          {recent.isLoading && <LoadingState label="Loading recent sessions…" />}
-          {recent.isError && (
-            <ErrorBanner message={formatApiError(recent.error, "Could not load recent sessions.")} />
-          )}
-          {deleteError && <ErrorBanner message={deleteError} />}
-          {!recent.isLoading && !recent.isError && (recent.data ?? []).length === 0 && (
-            <p className="muted">No sessions tracked yet. Start a new prompt design session.</p>
-          )}
-          {!recent.isLoading && !recent.isError && (recent.data ?? []).length > 0 && (
-            <ul className="item-list">
-              {(recent.data ?? []).map((session) => (
-                <li key={session.id}>
-                  <div className="item-row">
-                    <div>
-                      <Link
-                        to={sessionPath(session.id, sessionStepForState(session.state))}
-                        className="item-title"
-                      >
-                        {session.title}
-                      </Link>
-                      <p className="item-meta">
-                        Updated {formatDate(session.updatedAt)}
-                        {session.promptId && (
-                          <>
-                            {" · "}
-                            <code>{session.promptId}</code>
-                          </>
-                        )}
-                      </p>
-                      {session.similarityWarning && (
-                        <p className="item-warn">{session.similarityWarning}</p>
-                      )}
-                    </div>
-                    <div className="item-actions">
-                      <StatusBadge state={session.state} />
-                      <button
-                        type="button"
-                        className="button compact"
-                        disabled={deleteSession.isPending && deleteSession.variables === session.id}
-                        aria-label={`Delete session ${session.title}`}
-                        onClick={() => {
-                          void handleDeleteSession(session);
-                        }}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Panel>
+      <Grid hasGutter md={6}>
+        <GridItem>
+          <Panel title="Recent sessions">
+            {recent.isLoading && <LoadingState label="Loading recent sessions…" />}
+            {recent.isError && (
+              <ErrorBanner message={formatApiError(recent.error, "Could not load recent sessions.")} />
+            )}
+            {deleteError && <ErrorBanner message={deleteError} />}
+            {!recent.isLoading && !recent.isError && (recent.data ?? []).length === 0 && (
+              <Content component="p">No sessions tracked yet. Start a new prompt design session.</Content>
+            )}
+            {!recent.isLoading && !recent.isError && (recent.data ?? []).length > 0 && (
+              <DataList aria-label="Recent sessions">
+                {(recent.data ?? []).map((session) => (
+                  <DataListItem key={session.id}>
+                    <DataListItemRow>
+                      <DataListItemCells
+                        dataListCells={[
+                          <DataListCell key="title" width={4}>
+                            <Link to={sessionPath(session.id, sessionStepForState(session.state))}>
+                              {session.title}
+                            </Link>
+                            <Content component="small">
+                              Updated {formatDate(session.updatedAt)}
+                              {session.promptId && (
+                                <>
+                                  {" · "}
+                                  <code>{session.promptId}</code>
+                                </>
+                              )}
+                            </Content>
+                            {session.similarityWarning && (
+                              <Content component="small">{session.similarityWarning}</Content>
+                            )}
+                          </DataListCell>,
+                          <DataListCell key="actions" alignRight>
+                            <StatusBadge state={session.state} />
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              isDisabled={deleteSession.isPending && deleteSession.variables === session.id}
+                              aria-label={`Delete session ${session.title}`}
+                              onClick={() => setPendingDelete(session)}
+                            >
+                              Delete
+                            </Button>
+                          </DataListCell>,
+                        ]}
+                      />
+                    </DataListItemRow>
+                  </DataListItem>
+                ))}
+              </DataList>
+            )}
+          </Panel>
+        </GridItem>
 
-        <Panel title="Finalized prompts">
-          {registry.isLoading && <LoadingState label="Loading registry…" />}
-          {registry.isError && (
-            <ErrorBanner message={formatApiError(registry.error, "Registry unavailable.")} />
-          )}
-          {registry.data && registry.data.length > 0 && (
-            <label className="field panel-search">
-              <span className="sr-only">Search finalized prompts</span>
-              <input
-                type="search"
-                className="select-input"
+        <GridItem>
+          <Panel title="Finalized prompts">
+            {registry.isLoading && <LoadingState label="Loading registry…" />}
+            {registry.isError && (
+              <ErrorBanner message={formatApiError(registry.error, "Registry unavailable.")} />
+            )}
+            {registry.data && registry.data.length > 0 && (
+              <SearchInput
                 placeholder="Search by title, prompt ID, abstract, or tags…"
                 value={registrySearch}
-                onChange={(event) => setRegistrySearch(event.target.value)}
+                onChange={(_event, value) => setRegistrySearch(value)}
                 aria-label="Search finalized prompts"
               />
-            </label>
-          )}
-          {registry.data && registry.data.length === 0 && (
-            <p className="muted">No finalized prompts in the local registry yet.</p>
-          )}
-          {registry.data && registry.data.length > 0 && filteredRegistryPrompts.length === 0 && (
-            <p className="muted">No finalized prompts match your search.</p>
-          )}
-          {visibleRegistryPrompts.length > 0 && (
-            <ul className="item-list">
-              {visibleRegistryPrompts.map((prompt) => (
-                <li key={prompt.prompt_id}>
-                  <div className="item-row">
-                    <div>
-                      <Link to={`/registry/${prompt.prompt_id}`} className="item-title">
-                        {prompt.title}
-                      </Link>
-                      <p className="item-meta">
-                        <code>{prompt.prompt_id}</code>
-                        {prompt.abstract && <> · {prompt.abstract}</>}
-                      </p>
-                    </div>
-                    <span className="muted">v{prompt.version}</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-          {registry.data && registry.data.length > 0 && filteredRegistryPrompts.length > 8 && (
-            <Link
-              to={`/registry${registrySearchActive ? `?q=${encodeURIComponent(registrySearch.trim())}` : ""}`}
-              className="text-link"
-            >
-              View all {filteredRegistryPrompts.length} matching prompts
-            </Link>
-          )}
-          {registry.data &&
-            registry.data.length > 8 &&
-            !registrySearchActive &&
-            filteredRegistryPrompts.length <= 8 && (
-            <Link to="/registry" className="text-link">
-              View all {registry.data.length} prompts
-            </Link>
-          )}
-        </Panel>
-      </div>
-    </div>
+            )}
+            {registry.data && registry.data.length === 0 && (
+              <Content component="p">No finalized prompts in the local registry yet.</Content>
+            )}
+            {registry.data && registry.data.length > 0 && filteredRegistryPrompts.length === 0 && (
+              <Content component="p">No finalized prompts match your search.</Content>
+            )}
+            {visibleRegistryPrompts.length > 0 && (
+              <DataList aria-label="Finalized prompts">
+                {visibleRegistryPrompts.map((prompt) => (
+                  <DataListItem key={prompt.prompt_id}>
+                    <DataListItemRow>
+                      <DataListItemCells
+                        dataListCells={[
+                          <DataListCell key="title">
+                            <Link to={`/registry/${prompt.prompt_id}`}>{prompt.title}</Link>
+                            <Content component="small">
+                              <code>{prompt.prompt_id}</code>
+                              {prompt.abstract && <> · {prompt.abstract}</>}
+                            </Content>
+                          </DataListCell>,
+                          <DataListCell key="version" alignRight>
+                            v{prompt.version}
+                          </DataListCell>,
+                        ]}
+                      />
+                    </DataListItemRow>
+                  </DataListItem>
+                ))}
+              </DataList>
+            )}
+            {registry.data && registry.data.length > 0 && filteredRegistryPrompts.length > 8 && (
+              <Link to={`/registry${registrySearchActive ? `?q=${encodeURIComponent(registrySearch.trim())}` : ""}`}>
+                View all {filteredRegistryPrompts.length} matching prompts
+              </Link>
+            )}
+            {registry.data &&
+              registry.data.length > 8 &&
+              !registrySearchActive &&
+              filteredRegistryPrompts.length <= 8 && (
+                <Link to="/registry">View all {registry.data.length} prompts</Link>
+              )}
+          </Panel>
+        </GridItem>
+      </Grid>
+
+      <Modal
+        variant={ModalVariant.small}
+        isOpen={pendingDelete !== null}
+        onClose={() => setPendingDelete(null)}
+        aria-labelledby="delete-session-title"
+      >
+        <ModalHeader title="Delete session" labelId="delete-session-title" />
+        <ModalBody>
+          {pendingDelete
+            ? `Delete “${pendingDelete.title}”? This removes the session from this machine. Finalized registry prompts are kept.`
+            : null}
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="danger" onClick={() => void confirmDelete()} isDisabled={deleteSession.isPending}>
+            {deleteSession.isPending ? "Deleting…" : "Delete"}
+          </Button>
+          <Button variant="link" onClick={() => setPendingDelete(null)}>
+            Cancel
+          </Button>
+        </ModalFooter>
+      </Modal>
+    </PageFrame>
   );
 }

@@ -1,17 +1,12 @@
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { Button, Content, DescriptionList, DescriptionListDescription, DescriptionListGroup, DescriptionListTerm, Grid, GridItem } from "@patternfly/react-core";
 import { formatApiError } from "../api/http";
 import type { SessionDetailResponse } from "../api/types";
 import { useApproveOptimization, useUserSettings } from "../api/hooks";
 import { fetchLlmHealth } from "../api/sessions";
 import { formatPercent, sessionPath, sessionStepForState } from "../lib/sessionRouting";
-import {
-  DraftBlock,
-  ErrorBanner,
-  PageHeader,
-  Panel,
-  WarningBanner,
-} from "../components/ui";
+import { DraftBlock, ErrorBanner, PageFrame, PageHeader, Panel, WarningBanner } from "../components/ui";
 
 interface OptimizationPageProps {
   sessionId: string;
@@ -23,6 +18,21 @@ const DEFAULT_PRECISION_THRESHOLD = 0.75;
 
 function readinessReady(session: SessionDetailResponse): boolean {
   return session.first_shot_readiness?.ready ?? true;
+}
+
+function ChangeList({ items }: { items: string[] }) {
+  if (items.length === 0) {
+    return <Content component="p">None</Content>;
+  }
+  return (
+    <Content component="ul">
+      {items.map((item) => (
+        <Content key={item} component="li">
+          {item}
+        </Content>
+      ))}
+    </Content>
+  );
 }
 
 export function OptimizationPage({
@@ -50,27 +60,25 @@ export function OptimizationPage({
   const gateWarnings = session.quality_gate_warnings ?? [];
 
   const approveError =
-    approve.error != null
-      ? formatApiError(approve.error, "Approval failed.")
-      : null;
+    approve.error != null ? formatApiError(approve.error, "Approval failed.") : null;
 
   const approvalBlocked = (optimization?.hard_conflicts.length ?? 0) > 0;
 
   if (!optimization) {
     return (
-      <div className="page">
+      <PageFrame>
         <PageHeader title="Optimization" subtitle="Run optimization from the similarity step." />
         <Panel>
-          <p className="muted">No optimization result is available for this session.</p>
+          <Content component="p">No optimization result is available for this session.</Content>
         </Panel>
-      </div>
+      </PageFrame>
     );
   }
 
   const metrics = optimization.metrics;
 
   return (
-    <div className="page">
+    <PageFrame>
       <PageHeader
         title="Clarity optimization"
         subtitle="Review the clarified long-horizon contract, metrics, and change log before approving export. Token count is informational — clarity comes first."
@@ -99,183 +107,150 @@ export function OptimizationPage({
         <WarningBanner key={warning} message={warning} />
       ))}
 
-      <div className="grid-two">
-        <Panel title="Optimized prompt">
-          <DraftBlock body={optimization.optimized_body} label="Optimized" />
-        </Panel>
+      <Grid hasGutter md={6}>
+        <GridItem>
+          <Panel title="Optimized prompt">
+            <DraftBlock body={optimization.optimized_body} label="Optimized" />
+          </Panel>
+        </GridItem>
 
-        <Panel title="Metrics">
-          <dl className="metrics-grid">
-            <div>
-              <dt>Clarity</dt>
-              <dd>{formatPercent(metrics.targets.clarity ?? 0)}</dd>
-            </div>
-            <div>
-              <dt>Original tokens</dt>
-              <dd>{metrics.original_token_count}</dd>
-            </div>
-            <div>
-              <dt>Result tokens</dt>
-              <dd>{metrics.optimized_token_count}</dd>
-            </div>
-            <div>
-              <dt>Token reduction</dt>
-              <dd>{metrics.token_reduction_pct.toFixed(1)}%</dd>
-            </div>
-            <div>
-              <dt>Constraints / token</dt>
-              <dd>{metrics.constraints_per_token.toFixed(2)}</dd>
-            </div>
-            <div>
-              <dt>Richness</dt>
-              <dd>{formatPercent(metrics.targets.richness)}</dd>
-            </div>
-            <div>
-              <dt>Density</dt>
-              <dd>{formatPercent(metrics.targets.density)}</dd>
-            </div>
-            <div>
-              <dt>Efficiency</dt>
-              <dd>{formatPercent(metrics.targets.efficiency)}</dd>
-            </div>
-            <div>
-              <dt>Denoising</dt>
-              <dd>{formatPercent(metrics.targets.denoising)}</dd>
-            </div>
-            <div>
-              <dt>Deconfliction</dt>
-              <dd>{formatPercent(metrics.targets.deconfliction)}</dd>
-            </div>
-            <div>
-              <dt>Semantic precision</dt>
-              <dd>
-                {formatPercent(semanticPrecisionScore)}
-                {vagueLanguageCount > 0 ? ` (${vagueLanguageCount} vague)` : ""}
-              </dd>
-            </div>
-            {typeof firstShotScore === "number" && (
-              <div>
-                <dt>First-shot readiness</dt>
-                <dd>
-                  {formatPercent(firstShotScore)}
-                  {firstShotReady ? "" : " (gaps)"}
-                </dd>
-              </div>
+        <GridItem>
+          <Panel title="Metrics">
+            <DescriptionList isCompact columnModifier={{ default: "2Col" }}>
+              <DescriptionListGroup>
+                <DescriptionListTerm>Clarity</DescriptionListTerm>
+                <DescriptionListDescription>{formatPercent(metrics.targets.clarity ?? 0)}</DescriptionListDescription>
+              </DescriptionListGroup>
+              <DescriptionListGroup>
+                <DescriptionListTerm>Original tokens</DescriptionListTerm>
+                <DescriptionListDescription>{metrics.original_token_count}</DescriptionListDescription>
+              </DescriptionListGroup>
+              <DescriptionListGroup>
+                <DescriptionListTerm>Result tokens</DescriptionListTerm>
+                <DescriptionListDescription>{metrics.optimized_token_count}</DescriptionListDescription>
+              </DescriptionListGroup>
+              <DescriptionListGroup>
+                <DescriptionListTerm>Token reduction</DescriptionListTerm>
+                <DescriptionListDescription>{metrics.token_reduction_pct.toFixed(1)}%</DescriptionListDescription>
+              </DescriptionListGroup>
+              <DescriptionListGroup>
+                <DescriptionListTerm>Constraints / token</DescriptionListTerm>
+                <DescriptionListDescription>{metrics.constraints_per_token.toFixed(2)}</DescriptionListDescription>
+              </DescriptionListGroup>
+              <DescriptionListGroup>
+                <DescriptionListTerm>Richness</DescriptionListTerm>
+                <DescriptionListDescription>{formatPercent(metrics.targets.richness)}</DescriptionListDescription>
+              </DescriptionListGroup>
+              <DescriptionListGroup>
+                <DescriptionListTerm>Density</DescriptionListTerm>
+                <DescriptionListDescription>{formatPercent(metrics.targets.density)}</DescriptionListDescription>
+              </DescriptionListGroup>
+              <DescriptionListGroup>
+                <DescriptionListTerm>Efficiency</DescriptionListTerm>
+                <DescriptionListDescription>{formatPercent(metrics.targets.efficiency)}</DescriptionListDescription>
+              </DescriptionListGroup>
+              <DescriptionListGroup>
+                <DescriptionListTerm>Denoising</DescriptionListTerm>
+                <DescriptionListDescription>{formatPercent(metrics.targets.denoising)}</DescriptionListDescription>
+              </DescriptionListGroup>
+              <DescriptionListGroup>
+                <DescriptionListTerm>Deconfliction</DescriptionListTerm>
+                <DescriptionListDescription>{formatPercent(metrics.targets.deconfliction)}</DescriptionListDescription>
+              </DescriptionListGroup>
+              <DescriptionListGroup>
+                <DescriptionListTerm>Semantic precision</DescriptionListTerm>
+                <DescriptionListDescription>
+                  {formatPercent(semanticPrecisionScore)}
+                  {vagueLanguageCount > 0 ? ` (${vagueLanguageCount} vague)` : ""}
+                </DescriptionListDescription>
+              </DescriptionListGroup>
+              {typeof firstShotScore === "number" && (
+                <DescriptionListGroup>
+                  <DescriptionListTerm>First-shot readiness</DescriptionListTerm>
+                  <DescriptionListDescription>
+                    {formatPercent(firstShotScore)}
+                    {firstShotReady ? "" : " (gaps)"}
+                  </DescriptionListDescription>
+                </DescriptionListGroup>
+              )}
+              {typeof sectionCoverage === "number" && (
+                <DescriptionListGroup>
+                  <DescriptionListTerm>Section coverage</DescriptionListTerm>
+                  <DescriptionListDescription>{sectionCoverage}/17</DescriptionListDescription>
+                </DescriptionListGroup>
+              )}
+            </DescriptionList>
+            {!modelEnabled && showPrecisionRefinement && (
+              <Content component="small">
+                Semantic precision uses regex detection plus offline WordNet/glossary suggestions.
+                Run <code>make build-lexicon-index</code> for semantic vector ranking; the local
+                model reranks candidates when available.
+              </Content>
             )}
-            {typeof sectionCoverage === "number" && (
-              <div>
-                <dt>Section coverage</dt>
-                <dd>
-                  {sectionCoverage}/17
-                </dd>
-              </div>
+            {showPrecisionWarning && (
+              <WarningBanner
+                message={`Your semantic precision score is ${formatPercent(semanticPrecisionScore)} (below ${formatPercent(precisionThreshold)}). Vague wording hurts long-horizon agents more than extra tokens. Refine precision before approving export.`}
+              />
             )}
-          </dl>
-          {!modelEnabled && showPrecisionRefinement && (
-            <p className="muted">
-              Semantic precision uses regex detection plus offline WordNet/glossary suggestions.
-              Run <code>make build-lexicon-index</code> for semantic vector ranking; the local
-              model reranks candidates when available.
-            </p>
-          )}
-          {showPrecisionWarning && (
-            <WarningBanner
-                  message={`Your semantic precision score is ${formatPercent(semanticPrecisionScore)} (below ${formatPercent(precisionThreshold)}). Vague wording hurts long-horizon agents more than extra tokens. Refine precision before approving export.`}
-            />
-          )}
-          {showPrecisionRefinement && (
-            <div className="button-row">
-              <button
-                type="button"
-                className="button secondary"
-                onClick={() => navigate(`/sessions/${sessionId}/precision`)}
-              >
+            {showPrecisionRefinement && (
+              <Button variant="secondary" onClick={() => navigate(`/sessions/${sessionId}/precision`)}>
                 Refine precision
-              </button>
-            </div>
-          )}
-          <p className="muted">Passes: {optimization.passes_completed.join(" → ")}</p>
-        </Panel>
-      </div>
+              </Button>
+            )}
+            <Content component="small">Passes: {optimization.passes_completed.join(" → ")}</Content>
+          </Panel>
+        </GridItem>
+      </Grid>
 
-      <div className="grid-three">
-        <Panel title="Removed">
-          {optimization.changes.removed.length === 0 ? (
-            <p className="muted">None</p>
-          ) : (
-            <ul className="compact-list">
-              {optimization.changes.removed.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          )}
-        </Panel>
-        <Panel title="Clarified">
-          {(optimization.changes.clarified ?? optimization.changes.compressed).length === 0 ? (
-            <p className="muted">None</p>
-          ) : (
-            <ul className="compact-list">
-              {(optimization.changes.clarified ?? optimization.changes.compressed).map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          )}
-        </Panel>
-        <Panel title="Conflicts resolved">
-          {optimization.changes.conflicts_resolved.length === 0 ? (
-            <p className="muted">None</p>
-          ) : (
-            <ul className="compact-list">
-              {optimization.changes.conflicts_resolved.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          )}
-        </Panel>
-        <Panel title="Precision improvements">
-          {(optimization.changes.precision_improvements?.length ?? 0) === 0 ? (
-            <p className="muted">None</p>
-          ) : (
-            <ul className="compact-list">
-              {optimization.changes.precision_improvements.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          )}
-        </Panel>
-      </div>
+      <Grid hasGutter md={4}>
+        <GridItem>
+          <Panel title="Removed">
+            <ChangeList items={optimization.changes.removed} />
+          </Panel>
+        </GridItem>
+        <GridItem>
+          <Panel title="Clarified">
+            <ChangeList items={optimization.changes.clarified ?? optimization.changes.compressed} />
+          </Panel>
+        </GridItem>
+        <GridItem>
+          <Panel title="Conflicts resolved">
+            <ChangeList items={optimization.changes.conflicts_resolved} />
+          </Panel>
+        </GridItem>
+        <GridItem>
+          <Panel title="Precision improvements">
+            <ChangeList items={optimization.changes.precision_improvements ?? []} />
+          </Panel>
+        </GridItem>
+      </Grid>
 
       {!readOnly && (
-      <Panel title="Approve export">
-        <p className="muted">
-          Approval runs the pre-inference quality gate. Export artifacts are generated in the next
-          step.
-        </p>
-        {approveError && <ErrorBanner message={approveError} />}
-        {optimization.approved ? (
-          <button
-            type="button"
-            className="button primary"
-            onClick={() => navigate(sessionPath(sessionId, "export"))}
-          >
-            Continue to export
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="button primary"
-            disabled={approve.isPending || approvalBlocked}
-            onClick={() =>
-              void approve.mutateAsync().then((data) => {
-                navigate(sessionPath(sessionId, sessionStepForState(data.session.state)));
-              })
-            }
-          >
-            {approve.isPending ? "Approving…" : "Approve export"}
-          </button>
-        )}
-      </Panel>
+        <Panel title="Approve export">
+          <Content component="p">
+            Approval runs the pre-inference quality gate. Export artifacts are generated in the next
+            step.
+          </Content>
+          {approveError && <ErrorBanner message={approveError} />}
+          {optimization.approved ? (
+            <Button variant="primary" onClick={() => navigate(sessionPath(sessionId, "export"))}>
+              Continue to export
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              isDisabled={approve.isPending || approvalBlocked}
+              onClick={() =>
+                void approve.mutateAsync().then((data) => {
+                  navigate(sessionPath(sessionId, sessionStepForState(data.session.state)));
+                })
+              }
+            >
+              {approve.isPending ? "Approving…" : "Approve export"}
+            </Button>
+          )}
+        </Panel>
       )}
-    </div>
+    </PageFrame>
   );
 }

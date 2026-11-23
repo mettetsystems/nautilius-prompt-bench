@@ -1,3 +1,16 @@
+import {
+  Alert,
+  Card,
+  CardBody,
+  CardHeader,
+  CardTitle,
+  Content,
+  DescriptionList,
+  DescriptionListDescription,
+  DescriptionListGroup,
+  DescriptionListTerm,
+  Title,
+} from "@patternfly/react-core";
 import type { AgentContract, RequirementCard } from "../api/types";
 
 interface RequirementCardPanelProps {
@@ -10,10 +23,10 @@ function FieldBlock({ label, value }: { label: string; value: string | undefined
     return null;
   }
   return (
-    <div className="field-block">
-      <dt>{label}</dt>
-      <dd>{value}</dd>
-    </div>
+    <DescriptionListGroup>
+      <DescriptionListTerm>{label}</DescriptionListTerm>
+      <DescriptionListDescription>{value}</DescriptionListDescription>
+    </DescriptionListGroup>
   );
 }
 
@@ -22,16 +35,18 @@ function ListBlock({ label, items }: { label: string; items: string[] | undefine
     return null;
   }
   return (
-    <div className="field-block">
-      <dt>{label}</dt>
-      <dd>
-        <ul className="compact-list">
+    <DescriptionListGroup>
+      <DescriptionListTerm>{label}</DescriptionListTerm>
+      <DescriptionListDescription>
+        <Content component="ul">
           {items.map((item) => (
-            <li key={item}>{item}</li>
+            <Content key={item} component="li">
+              {item}
+            </Content>
           ))}
-        </ul>
-      </dd>
-    </div>
+        </Content>
+      </DescriptionListDescription>
+    </DescriptionListGroup>
   );
 }
 
@@ -43,9 +58,11 @@ function DimensionGroup({
   children: React.ReactNode;
 }) {
   return (
-    <div className="dimension-group">
-      <h3 className="dimension-heading">{heading}</h3>
-      <dl className="field-list">{children}</dl>
+    <div>
+      <Title headingLevel="h3" size="md">
+        {heading}
+      </Title>
+      <DescriptionList isCompact>{children}</DescriptionList>
     </div>
   );
 }
@@ -79,45 +96,53 @@ export function RequirementCardPanel({
 
   if (!task || !contract) {
     return (
-      <aside className="panel side-panel">
-        <h2>{title}</h2>
-        <div className="callout callout-warn">
-          <strong>Requirement card unavailable</strong>
-          <p>
-            This session was saved with an older card schema, so the page cannot
-            render it. Start a new session from the same initial prompt, and run
-            the API from this workspace with make dev-api.
-          </p>
-        </div>
-      </aside>
+      <Card component="aside" className="side-panel">
+        <CardHeader>
+          <CardTitle>{title}</CardTitle>
+        </CardHeader>
+        <CardBody>
+          <Alert variant="warning" isInline role="status" title="Requirement card unavailable">
+            This session was saved with an older card schema, so the page cannot render it. Start a
+            new session from the same initial prompt, and run the API from this workspace with make
+            dev-api.
+          </Alert>
+        </CardBody>
+      </Card>
     );
   }
 
   return (
-    <aside className="panel side-panel">
-      <h2>{title}</h2>
-      {unresolved.length > 0 && (
-        <div className="callout callout-warn">
-          <strong>Unresolved</strong>
-          <p>{unresolved.join(", ")}</p>
-        </div>
-      )}
+    <Card component="aside" className="side-panel">
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <CardBody>
+        {unresolved.length > 0 && (
+          <Alert variant="warning" isInline role="status" title="Unresolved">
+            {unresolved.join(", ")}
+          </Alert>
+        )}
 
-      <DimensionGroup heading="Task Identity">
-        <FieldBlock label="Objective" value={task.objective} />
-        <FieldBlock label="Task type" value={task.task_type} />
-        <FieldBlock label="Environment" value={task.environment} />
-        <ListBlock label="Additional constraints" items={task.additional_constraints} />
-      </DimensionGroup>
+        <DimensionGroup heading="Task Identity">
+          <FieldBlock label="Objective" value={task.objective} />
+          <FieldBlock label="Task type" value={task.task_type} />
+          <FieldBlock label="Environment" value={task.environment} />
+          <ListBlock label="Additional constraints" items={task.additional_constraints} />
+        </DimensionGroup>
 
-      {card.application_requirements && <DimensionGroup heading="Application requirements">
-        {Object.entries(card.application_requirements).map(([key, value]) => <FieldBlock key={key} label={key.replaceAll("_", " ")} value={value} />)}
-      </DimensionGroup>}
-      <DimensionGroup heading="Explicit execution requirements">
-        {CONTRACT_FIELDS.map((field) => (
-          <FieldBlock key={field.key} label={field.label} value={contract[field.key]} />
-        ))}
-      </DimensionGroup>
-    </aside>
+        {card.application_requirements && (
+          <DimensionGroup heading="Application requirements">
+            {Object.entries(card.application_requirements).map(([key, value]) => (
+              <FieldBlock key={key} label={key.replaceAll("_", " ")} value={value} />
+            ))}
+          </DimensionGroup>
+        )}
+        <DimensionGroup heading="Explicit execution requirements">
+          {CONTRACT_FIELDS.map((field) => (
+            <FieldBlock key={field.key} label={field.label} value={contract[field.key]} />
+          ))}
+        </DimensionGroup>
+      </CardBody>
+    </Card>
   );
 }

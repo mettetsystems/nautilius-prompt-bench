@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { ProgressStep, ProgressStepper } from "@patternfly/react-core";
 import type { SessionState } from "../api/types";
 import {
   SESSION_STEP_LABELS,
@@ -19,42 +20,31 @@ export function SessionWorkflowNav({ sessionId, state, activeStep }: SessionWork
   const currentStep = sessionStepForState(state);
 
   return (
-    <nav className="workflow-nav" aria-label="Session workflow">
-      <ol className="workflow-steps">
-        {SESSION_STEPS.map((step) => {
-          const reachable = canVisitStep(step, state);
-          const isActive = step === activeStep;
-          const isCurrent = step === currentStep;
+    <ProgressStepper aria-label="Session workflow">
+      {SESSION_STEPS.map((step) => {
+        const reachable = canVisitStep(step, state);
+        const isActive = step === activeStep;
+        const isCurrent = step === currentStep;
+        const label = SESSION_STEP_LABELS[step];
+        const variant = !reachable ? "pending" : isCurrent ? "info" : "success";
 
-          return (
-            <li
-              key={step}
-              className={[
-                "workflow-step",
-                isActive ? "is-active" : "",
-                isCurrent ? "is-current" : "",
-                reachable ? "is-reachable" : "is-locked",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-            >
-              {reachable ? (
-                <Link
-                  to={sessionPath(sessionId, step)}
-                  aria-current={isActive ? "step" : undefined}
-                  className="workflow-step-link"
-                >
-                  {SESSION_STEP_LABELS[step]}
-                </Link>
-              ) : (
-                <span className="workflow-step-link" aria-disabled="true">
-                  {SESSION_STEP_LABELS[step]}
-                </span>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-    </nav>
+        return (
+          <ProgressStep
+            key={step}
+            id={`workflow-${step}`}
+            titleId={`workflow-${step}-title`}
+            variant={variant}
+            isCurrent={isActive}
+            aria-label={reachable ? label : `${label}, unavailable`}
+          >
+            {reachable ? (
+              <Link to={sessionPath(sessionId, step)}>{label}</Link>
+            ) : (
+              <span aria-disabled="true">{label}</span>
+            )}
+          </ProgressStep>
+        );
+      })}
+    </ProgressStepper>
   );
 }

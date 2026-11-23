@@ -1,5 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import {
+  Button,
+  ClipboardCopy,
+  Content,
+  DescriptionList,
+  DescriptionListDescription,
+  DescriptionListGroup,
+  DescriptionListTerm,
+  ExpandableSection,
+  FormGroup,
+  FormSelect,
+  FormSelectOption,
+  Title,
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@patternfly/react-core";
 import { formatApiError } from "../api/http";
 import type {
   AskTheLocalsResponse,
@@ -21,7 +37,7 @@ import {
   buildClarificationAnswer,
   toggleClarificationOption,
 } from "../lib/clarificationAnswer";
-import { ErrorBanner, Panel } from "./ui";
+import { ButtonRow, ErrorBanner, Panel, TextAreaField } from "./ui";
 
 const DEFAULT_VERSIONS: ClarificationVersionsSettings = {
   beginner: true,
@@ -45,21 +61,78 @@ function BeginnerOptionGuides({ guides }: { guides: QuickReplyGuide[] }) {
     return null;
   }
   return (
-    <div className="option-guides">
-      <p className="option-guides-title">What each default option means</p>
-      <ul className="option-guide-list">
+    <div>
+      <Title headingLevel="h4" size="md">
+        What each default option means
+      </Title>
+      <DescriptionList isCompact>
         {guides.map((guide) => (
-          <li key={guide.option} className="option-guide-item">
-            <p className="option-guide-option">{guide.option}</p>
-            <p className="option-guide-explanation">{guide.explanation}</p>
-            <p className="option-guide-when">
-              <span className="clarification-rationale-label">Best when: </span>
-              {guide.when_to_use}
-            </p>
-          </li>
+          <DescriptionListGroup key={guide.option}>
+            <DescriptionListTerm>{guide.option}</DescriptionListTerm>
+            <DescriptionListDescription>
+              <Content component="p">{guide.explanation}</Content>
+              <Content component="p">
+                <strong>Best when: </strong>
+                {guide.when_to_use}
+              </Content>
+            </DescriptionListDescription>
+          </DescriptionListGroup>
         ))}
-      </ul>
+      </DescriptionList>
     </div>
+  );
+}
+
+function VersionSection({
+  version,
+  defaultExpanded,
+  questionNumber,
+  totalQuestions,
+  sharedRationale,
+  optionGuides,
+}: {
+  version: ClarificationVersionText;
+  defaultExpanded: boolean;
+  questionNumber: number;
+  totalQuestions: number;
+  sharedRationale: string | null | undefined;
+  optionGuides: QuickReplyGuide[];
+}) {
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  return (
+    <ExpandableSection
+      isExpanded={isExpanded}
+      onToggle={(_event, expanded) => setIsExpanded(expanded)}
+      toggleContent={
+        <>
+          <span>{version.label}</span>{" "}
+          <span>
+            Question {questionNumber} of {totalQuestions}
+          </span>
+        </>
+      }
+    >
+      <Content component="p">{version.prompt}</Content>
+      {(version.rationale || sharedRationale) && (
+        <Content component="p">
+          <span>Why this matters: </span>
+          {version.rationale || sharedRationale}
+        </Content>
+      )}
+      {(version.blind_spots?.length ?? 0) > 0 && (
+        <div>
+          <Content component="p">Potential blind spots (unconfirmed)</Content>
+          <Content component="ul">
+            {version.blind_spots?.map((spot, index) => (
+              <Content key={index} component="li">
+                {spot}
+              </Content>
+            ))}
+          </Content>
+        </div>
+      )}
+      {version.level === "beginner" && <BeginnerOptionGuides guides={optionGuides} />}
+    </ExpandableSection>
   );
 }
 
@@ -83,43 +156,17 @@ function ClarificationVersionAccordions({
   const sharedRationale = versions.find((version) => version.rationale)?.rationale;
 
   return (
-    <div
-      key={questionKey}
-      className="clarification-versions"
-      role="group"
-      aria-label="Question wording versions"
-    >
+    <div key={questionKey} role="group" aria-label="Question wording versions">
       {visible.map((version) => (
-        <details
+        <VersionSection
           key={version.level}
-          className="clarification-version"
-          open={version.level === "standard"}
-        >
-          <summary className="clarification-version-summary">
-            <span className="clarification-version-label">{version.label}</span>
-            <span className="muted">
-              Question {questionNumber} of {totalQuestions}
-            </span>
-          </summary>
-          <div className="clarification-version-body">
-            <p className="question-text">{version.prompt}</p>
-            {(version.rationale || sharedRationale) && (
-              <p className="clarification-rationale">
-                <span className="clarification-rationale-label">Why this matters: </span>
-                {version.rationale || sharedRationale}
-              </p>
-            )}
-            {(version.blind_spots?.length ?? 0) > 0 && (
-              <div className="clarification-rationale">
-                <p className="clarification-rationale-label">Potential blind spots (unconfirmed)</p>
-                <ul>
-                  {version.blind_spots?.map((spot, index) => <li key={index}>{spot}</li>)}
-                </ul>
-              </div>
-            )}
-            {version.level === "beginner" && <BeginnerOptionGuides guides={optionGuides} />}
-          </div>
-        </details>
+          version={version}
+          defaultExpanded={version.level === "standard"}
+          questionNumber={questionNumber}
+          totalQuestions={totalQuestions}
+          sharedRationale={sharedRationale}
+          optionGuides={optionGuides}
+        />
       ))}
     </div>
   );
@@ -162,7 +209,6 @@ export function ClarificationQuestionPanel({
     null,
   );
   const [localsInsight, setLocalsInsight] = useState<AskTheLocalsResponse | null>(null);
-  const [localsCopied, setLocalsCopied] = useState(false);
 
   const questionKey = `${session.clarification_question_number ?? 0}:${session.clarification_field ?? ""}`;
 
@@ -173,7 +219,6 @@ export function ClarificationQuestionPanel({
     setCustomAnswer("");
     setModelSuggestions(null);
     setLocalsInsight(null);
-    setLocalsCopied(false);
   }, [questionKey]);
 
   const questionNumber = session.clarification_question_number ?? 1;
@@ -221,8 +266,6 @@ export function ClarificationQuestionPanel({
   async function requestLocalsInsight() {
     const result = await locals.mutateAsync();
     setLocalsInsight(result);
-    setLocalsCopied(false);
-
   }
 
   function useLocalsAnswer(text: string) {
@@ -234,19 +277,6 @@ export function ClarificationQuestionPanel({
       customAnswerRef.current?.focus();
       customAnswerRef.current?.select();
     });
-  }
-
-  async function copyLocalsRecommendation(text: string) {
-    if (!text.trim()) {
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(text);
-      setLocalsCopied(true);
-      window.setTimeout(() => setLocalsCopied(false), 2000);
-    } catch {
-      setLocalsCopied(false);
-    }
   }
 
   const localsCopyText =
@@ -274,11 +304,15 @@ export function ClarificationQuestionPanel({
     ? "Review the requirement card for answers captured during clarification."
     : "Answer one question at a time to sharpen your prompt goal. With AI assistance, the model prioritizes open decisions, explains why they matter, and highlights potential blind spots for you to confirm. Quick replies and custom answers also work offline.";
 
+  const suggestionLabels = {
+    recommendations: "Recommendations (not requirements)",
+    assumptions: "Unconfirmed assumptions",
+    conflicts: "Conflicts with accepted answers",
+    follow_up_questions: "Useful follow-up questions",
+  } as const;
+
   return (
-    <Panel
-      title={title}
-      className={readOnly ? "clarification-instruction is-compact" : "clarification-instruction"}
-    >
+    <Panel title={title}>
       {!readOnly && hasVersions && (
         <ClarificationVersionAccordions
           versions={versions}
@@ -290,45 +324,39 @@ export function ClarificationQuestionPanel({
         />
       )}
       {!readOnly && !hasVersions && session.clarification_question && (
-        <p className="question-text">{session.clarification_question}</p>
+        <Content component="p">{session.clarification_question}</Content>
       )}
       {modelSuggestions?.suggested_question && (
-        <p className="muted model-suggested-question">
-          Model rephrase: {modelSuggestions.suggested_question}
-        </p>
+        <Content component="small">Model rephrase: {modelSuggestions.suggested_question}</Content>
       )}
       {session.clarification_field && !readOnly && (
-        <p className="muted">
+        <Content component="small">
           Field: <code>{session.clarification_field}</code>
-        </p>
+        </Content>
       )}
-      <p className="muted">{helpText ?? defaultHelp}</p>
+      <Content component="small">{helpText ?? defaultHelp}</Content>
       {!readOnly && (
         <>
-          <div className="quick-replies" role="group" aria-label="Quick reply options">
+          <ToggleGroup aria-label="Quick reply options">
             {(session.clarification_quick_replies ?? []).map((option) => {
               const isSelected = selectedOptions.includes(option);
               return (
-                <button
+                <ToggleGroupItem
                   key={option}
-                  type="button"
-                  className={isSelected ? "button secondary is-selected" : "button secondary"}
-                  disabled={isBusy}
-                  aria-pressed={isSelected}
-                  onClick={() =>
+                  text={option}
+                  isSelected={isSelected}
+                  isDisabled={isBusy}
+                  onChange={() =>
                     setSelectedOptions((current) => toggleClarificationOption(current, option))
                   }
-                >
-                  {option}
-                </button>
+                />
               );
             })}
-          </div>
-          <div className="button-row">
-            <button
-              type="button"
-              className="button secondary"
-              disabled={locals.isPending || !localsEnabled || answer.isPending}
+          </ToggleGroup>
+          <ButtonRow>
+            <Button
+              variant="secondary"
+              isDisabled={locals.isPending || !localsEnabled || answer.isPending}
               title={
                 localsEnabled
                   ? localsOverrideActive
@@ -339,11 +367,10 @@ export function ClarificationQuestionPanel({
               onClick={() => void requestLocalsInsight()}
             >
               {locals.isPending ? "Asking locals…" : "Ask The Locals"}
-            </button>
-            <button
-              type="button"
-              className="button secondary"
-              disabled={isBusy || suggest.isPending}
+            </Button>
+            <Button
+              variant="secondary"
+              isDisabled={isBusy || suggest.isPending}
               title={
                 modelEnabled
                   ? "Ask the local model for contextual answer suggestions"
@@ -352,184 +379,218 @@ export function ClarificationQuestionPanel({
               onClick={() => void requestModelSuggestions()}
             >
               {suggest.isPending ? "Querying model…" : "Get model suggestions"}
-            </button>
-          </div>
-          <label className="field">
-            <span>Suggestion model</span>
-            <select value={suggestionModel} onChange={(event) => setSuggestionModel(event.target.value as "lightweight" | "large")} disabled={suggest.isPending}>
-              <option value="lightweight">Current lightweight model</option>
-              <option value="large">Dedicated large clarification model</option>
-            </select>
-          </label>
-          {suggest.isPending && <p role="status">Generating suggestions. Large models may take up to several minutes. You can continue manually.</p>}
+            </Button>
+          </ButtonRow>
+          <FormGroup label="Suggestion model" fieldId="suggestion-model">
+            <FormSelect
+              id="suggestion-model"
+              value={suggestionModel}
+              onChange={(_event, value) => setSuggestionModel(value as "lightweight" | "large")}
+              isDisabled={suggest.isPending}
+              aria-label="Suggestion model"
+            >
+              <FormSelectOption value="lightweight" label="Current lightweight model" />
+              <FormSelectOption value="large" label="Dedicated large clarification model" />
+            </FormSelect>
+          </FormGroup>
+          {suggest.isPending && (
+            <p role="status">
+              Generating suggestions. Large models may take up to several minutes. You can continue manually.
+            </p>
+          )}
           {modelSuggestions && (
-            <div className="model-suggestions">
-              <p className="muted">
+            <div>
+              <Content component="small">
                 {modelSuggestions.message ??
                   (modelSuggestions.model_available
                     ? "Select any model suggestions below."
                     : "Model suggestions unavailable.")}
-              </p>
-              <p><strong>Your original answer:</strong> {modelSuggestions.original_answer || "No answer supplied"}</p>
-              {proposedAnswer && <label className="field"><span>Model proposal — edit before accepting</span>
-                <textarea aria-label="Model proposal" value={proposedAnswer} onChange={(event) => setProposedAnswer(event.target.value)} rows={4} maxLength={4096} />
-              </label>}
-              {(["recommendations", "assumptions", "conflicts", "follow_up_questions"] as const).map((kind) =>
-                (modelSuggestions[kind]?.length ?? 0) > 0 && <div key={kind}>
-                  <strong>{{ recommendations: "Recommendations (not requirements)", assumptions: "Unconfirmed assumptions", conflicts: "Conflicts with accepted answers", follow_up_questions: "Useful follow-up questions" }[kind]}</strong>
-                  <ul>{modelSuggestions[kind]?.map((text, i) => <li key={i}>{text}</li>)}</ul>
-                </div>)}
-              <div className="button-row">
-                <button type="button" disabled={!proposedAnswer.trim() || isBusy || Boolean(modelSuggestions.conflicts?.length)} onClick={() => { setSelectedOptions([]); setCustomAnswer(proposedAnswer); }}>Use edited proposal</button>
-                <button type="button" onClick={() => { setModelSuggestions(null); setProposedAnswer(""); }}>Reject suggestion</button>
-                <button type="button" disabled={suggest.isPending || isBusy} onClick={() => void requestModelSuggestions()}>Regenerate</button>
-              </div>
-              <p className="muted">Only Submit answer records your choice. Suggestions do not change accepted answers. Answer useful follow-ups in your custom text, or leave them explicitly open.</p>
+              </Content>
+              <Content component="p">
+                <strong>Your original answer:</strong> {modelSuggestions.original_answer || "No answer supplied"}
+              </Content>
+              {proposedAnswer && (
+                <TextAreaField
+                  id="model-proposal"
+                  label="Model proposal"
+                  ariaLabel="Model proposal"
+                  value={proposedAnswer}
+                  onChange={setProposedAnswer}
+                  rows={4}
+                  maxLength={4096}
+                />
+              )}
+              {(["recommendations", "assumptions", "conflicts", "follow_up_questions"] as const).map(
+                (kind) =>
+                  (modelSuggestions[kind]?.length ?? 0) > 0 && (
+                    <div key={kind}>
+                      <strong>{suggestionLabels[kind]}</strong>
+                      <Content component="ul">
+                        {modelSuggestions[kind]?.map((text, index) => (
+                          <Content key={index} component="li">
+                            {text}
+                          </Content>
+                        ))}
+                      </Content>
+                    </div>
+                  ),
+              )}
+              <ButtonRow>
+                <Button
+                  variant="secondary"
+                  isDisabled={!proposedAnswer.trim() || isBusy || Boolean(modelSuggestions.conflicts?.length)}
+                  onClick={() => {
+                    setSelectedOptions([]);
+                    setCustomAnswer(proposedAnswer);
+                  }}
+                >
+                  Use edited proposal
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setModelSuggestions(null);
+                    setProposedAnswer("");
+                  }}
+                >
+                  Reject suggestion
+                </Button>
+                <Button
+                  variant="secondary"
+                  isDisabled={suggest.isPending || isBusy}
+                  onClick={() => void requestModelSuggestions()}
+                >
+                  Regenerate
+                </Button>
+              </ButtonRow>
+              <Content component="small">
+                Only Submit answer records your choice. Suggestions do not change accepted answers. Answer useful follow-ups in your custom text, or leave them explicitly open.
+              </Content>
               {modelSuggestions.suggested_answers.length > 0 && (
-                <div className="quick-replies" role="group" aria-label="Model suggestions">
+                <ToggleGroup aria-label="Model suggestions">
                   {modelSuggestions.suggested_answers.map((option) => {
                     const isSelected = selectedOptions.includes(option);
                     return (
-                      <button
+                      <ToggleGroupItem
                         key={option}
-                        type="button"
-                        className={
-                          isSelected
-                            ? "button secondary is-selected is-model"
-                            : "button secondary is-model"
+                        text={option}
+                        isSelected={isSelected}
+                        isDisabled={isBusy}
+                        onChange={() =>
+                          setSelectedOptions((current) => toggleClarificationOption(current, option))
                         }
-                        disabled={isBusy}
-                        aria-pressed={isSelected}
-                        onClick={() =>
-                          setSelectedOptions((current) =>
-                            toggleClarificationOption(current, option),
-                          )
-                        }
-                      >
-                        {option}
-                      </button>
+                      />
                     );
                   })}
-                </div>
+                </ToggleGroup>
               )}
             </div>
           )}
-          <label className="field">
-            <span>Custom answer (optional)</span>
-            <textarea
-              ref={customAnswerRef}
-              rows={3}
-              value={customAnswer}
-              onChange={(event) => setCustomAnswer(event.target.value)}
-              placeholder="Add details or combine with the options above"
-              disabled={selectedOptions.includes("unspecified")}
-            />
-          </label>
+          <TextAreaField
+            id="custom-answer"
+            label="Custom answer (optional)"
+            inputRef={customAnswerRef}
+            rows={3}
+            value={customAnswer}
+            onChange={setCustomAnswer}
+            placeholder="Add details or combine with the options above"
+            isDisabled={selectedOptions.includes("unspecified")}
+          />
           {localsInsight && localsIsShortAnswer && (
-            <div className="locals-short-answer" aria-live="polite">
-              <p className="locals-short-answer-text">{localsCopyText}</p>
-              <div className="button-row locals-copy-actions">
-                <button
-                  type="button"
-                  className="button primary"
-                  disabled={selectedOptions.includes("unspecified")}
-                  onClick={() => useLocalsAnswer(localsCopyText)}
-                >
-                  Use answer
-                </button>
-                <button
-                  type="button"
-                  className="button secondary"
-                  onClick={() => void copyLocalsRecommendation(localsCopyText)}
-                >
-                  {localsCopied ? "Copied" : "Copy"}
-                </button>
-              </div>
-              <p className="muted locals-copy-meta">
+            <div aria-live="polite">
+              <ClipboardCopy
+                isReadOnly
+                hoverTip="Copy"
+                clickTip="Copied"
+                variant="expansion"
+                isExpanded
+              >
+                {localsCopyText}
+              </ClipboardCopy>
+              <Button
+                variant="primary"
+                isDisabled={selectedOptions.includes("unspecified")}
+                onClick={() => useLocalsAnswer(localsCopyText)}
+              >
+                Use answer
+              </Button>
+              <Content component="small">
                 {localsInsight.message ?? "Short recommendation ready."}
                 {localsInsight.model_source ? ` · ${localsInsight.model_source}` : ""}
-              </p>
+              </Content>
             </div>
           )}
           {localsInsight && !localsIsShortAnswer && (
-            <div className="locals-insight locals-copy-window" aria-live="polite">
-              <div className="locals-copy-header">
-                <div>
-                  <p className="locals-copy-title">Ask The Locals recommendation</p>
-                  <p className="muted locals-copy-meta">
-                    {localsInsight.message ??
-                      (localsInsight.model_available
-                        ? "Contextual recommendation"
-                        : "Ask The Locals unavailable.")}
-                    {localsInsight.model_source ? ` · ${localsInsight.model_source}` : ""}
-                    {localsInsight.previous_answers_used.length > 0
-                      ? ` · grounded in ${localsInsight.previous_answers_used.length} prior answer${
-                          localsInsight.previous_answers_used.length === 1 ? "" : "s"
-                        }`
-                      : ""}
-                  </p>
-                </div>
-                <div className="button-row locals-copy-actions">
-                  <button
-                    type="button"
-                    className="button secondary"
-                    disabled={!localsCopyText}
-                    onClick={() => void copyLocalsRecommendation(localsCopyText)}
-                  >
-                    {localsCopied ? "Copied" : "Copy"}
-                  </button>
-                  <button
-                    type="button"
-                    className="button secondary"
-                    disabled={!localsCopyText || selectedOptions.includes("unspecified")}
-                    onClick={() => useLocalsAnswer(localsCopyText)}
-                  >
-                    Use answer
-                  </button>
-                </div>
-              </div>
+            <div aria-live="polite">
+              <Title headingLevel="h3" size="md">
+                Ask The Locals recommendation
+              </Title>
+              <Content component="small">
+                {localsInsight.message ??
+                  (localsInsight.model_available
+                    ? "Contextual recommendation"
+                    : "Ask The Locals unavailable.")}
+                {localsInsight.model_source ? ` · ${localsInsight.model_source}` : ""}
+                {localsInsight.previous_answers_used.length > 0
+                  ? ` · grounded in ${localsInsight.previous_answers_used.length} prior answer${
+                      localsInsight.previous_answers_used.length === 1 ? "" : "s"
+                    }`
+                  : ""}
+              </Content>
+              <Button
+                variant="secondary"
+                isDisabled={!localsCopyText || selectedOptions.includes("unspecified")}
+                onClick={() => useLocalsAnswer(localsCopyText)}
+              >
+                Use answer
+              </Button>
               {localsCopyText ? (
-                <textarea
-                  className="locals-copy-text"
-                  rows={4}
-                  readOnly
-                  value={localsCopyText}
-                  aria-label="Ask The Locals copyable recommendation"
-                />
+                <ClipboardCopy
+                  isReadOnly
+                  hoverTip="Copy"
+                  clickTip="Copied"
+                  variant="expansion"
+                  isExpanded
+                  textAriaLabel="Ask The Locals copyable recommendation"
+                >
+                  {localsCopyText}
+                </ClipboardCopy>
               ) : (
-                <p className="muted">No recommendation text was returned.</p>
+                <Content component="small">No recommendation text was returned.</Content>
               )}
-              {localsHasInsight && (
-                <p className="locals-insight-body">{localsInsight.insight}</p>
-              )}
+              {localsHasInsight && <Content component="p">{localsInsight.insight}</Content>}
             </div>
           )}
           {errorMessage && <ErrorBanner message={errorMessage} />}
-          {(session.clarification_open_decisions?.length ?? 0) > 0 && <div role="status">
-            <strong>Open decisions that may affect implementation</strong>
-            <ul>{session.clarification_open_decisions?.map((field) => <li key={field}>{field.split(".").pop()?.replaceAll("_", " ")}</li>)}</ul>
-            <p>You can continue with these open. No requirements will be assumed; use “Recommend an option” or explain a deliberate deferral.</p>
-          </div>}
-          <div className="button-row">
-            <button
-              type="button"
-              className="button primary"
-              disabled={isBusy || !canSubmit}
+          {(session.clarification_open_decisions?.length ?? 0) > 0 && (
+            <div role="status">
+              <strong>Open decisions that may affect implementation</strong>
+              <Content component="ul">
+                {session.clarification_open_decisions?.map((field) => (
+                  <Content key={field} component="li">
+                    {field.split(".").pop()?.replaceAll("_", " ")}
+                  </Content>
+                ))}
+              </Content>
+              <Content component="p">
+                You can continue with these open. No requirements will be assumed; use “Recommend an option” or explain a deliberate deferral.
+              </Content>
+            </div>
+          )}
+          <ButtonRow>
+            <Button
+              variant="primary"
+              isDisabled={isBusy || !canSubmit}
               onClick={() => combinedAnswer && void submitAnswer(combinedAnswer)}
             >
               {answer.isPending ? "Submitting…" : "Submit answer"}
-            </button>
+            </Button>
             {canFinish && (
-              <button
-                type="button"
-                className="button secondary"
-                disabled={isBusy}
-                onClick={() => void complete.mutateAsync()}
-              >
+              <Button variant="secondary" isDisabled={isBusy} onClick={() => void complete.mutateAsync()}>
                 {complete.isPending ? "Generating…" : "Generate draft now"}
-              </button>
+              </Button>
             )}
-          </div>
+          </ButtonRow>
         </>
       )}
     </Panel>

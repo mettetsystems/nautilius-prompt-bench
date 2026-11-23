@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import { Button, Content, DescriptionList, DescriptionListDescription, DescriptionListGroup, DescriptionListTerm, Grid, GridItem, Stack, Title } from "@patternfly/react-core";
 import { artifactFileUrl } from "../api/http";
 import { useRegistryPrompt } from "../api/hooks";
 import { RequirementCardPanel } from "../components/RequirementCardPanel";
-import { DraftBlock, LoadingState, PageHeader, Panel } from "../components/ui";
+import { DraftBlock, LinkButton, LoadingState, PageFrame, PageHeader, Panel } from "../components/ui";
 
 export function RegistryDetailPage() {
   const { promptId = "" } = useParams();
@@ -31,17 +32,21 @@ export function RegistryDetailPage() {
   }
 
   if (detail.isLoading) {
-    return <LoadingState label="Loading prompt…" />;
+    return (
+      <PageFrame>
+        <LoadingState label="Loading prompt…" />
+      </PageFrame>
+    );
   }
 
   if (detail.isError || !detail.data) {
     return (
-      <div className="page">
+      <PageFrame>
         <PageHeader title="Prompt not found" />
-        <Link to="/registry" className="text-link">
+        <LinkButton to="/registry" variant="link">
           Back to registry
-        </Link>
-      </div>
+        </LinkButton>
+      </PageFrame>
     );
   }
 
@@ -51,112 +56,104 @@ export function RegistryDetailPage() {
   const artifactPaths = Object.entries(metadata.artifact_paths);
 
   return (
-    <div className="page">
+    <PageFrame>
       <PageHeader
         title={metadata.title}
         subtitle={metadata.abstract || "Finalized prompt registry entry"}
         actions={
-          <Link to="/registry" className="button secondary">
+          <LinkButton to="/registry" variant="secondary">
             Back
-          </Link>
+          </LinkButton>
         }
       />
 
-      <div className="grid-workflow">
-        <div className="workflow-main stack-form">
-          <Panel title="Metadata">
-            <dl className="field-list">
-              <div className="field-block">
-                <dt>Prompt ID</dt>
-                <dd>
-                  <code>{metadata.prompt_id}</code>
-                </dd>
-              </div>
-              <div className="field-block">
-                <dt>Version</dt>
-                <dd>{metadata.version}</dd>
-              </div>
-              <div className="field-block">
-                <dt>Output form</dt>
-                <dd>{metadata.output_form || "—"}</dd>
-              </div>
-              {metadata.tags.length > 0 && (
-                <div className="field-block">
-                  <dt>Tags</dt>
-                  <dd>{metadata.tags.join(", ")}</dd>
-                </div>
-              )}
-              {Object.keys(metadata.evaluation_scores).length > 0 && (
-                <div className="field-block">
-                  <dt>Evaluation scores</dt>
-                  <dd>
-                    <ul className="compact-list">
-                      {Object.entries(metadata.evaluation_scores).map(([key, value]) => (
-                        <li key={key}>
-                          {key}: {value}
-                        </li>
-                      ))}
-                    </ul>
-                  </dd>
-                </div>
-              )}
-            </dl>
-          </Panel>
-
-          <Panel title="Canonical prompt">
-            <DraftBlock body={data.canonical_prompt} label="Registry canonical" />
-          </Panel>
-
-          <Panel title="Artifacts">
-            {manifestFiles.length === 0 && artifactPaths.length === 0 ? (
-              <p className="muted">No export artifacts linked yet.</p>
-            ) : (
-              <ul className="artifact-list">
-                {manifestFiles.map((file) => (
-                  <li key={file.name}>
-                    <button
-                      type="button"
-                      className="text-link button-link"
-                      onClick={() => void openArtifact(file.name)}
-                    >
-                      {file.name}
-                    </button>
-                    <span className="muted">
-                      {" "}
-                      ({file.format}, {file.size_bytes} bytes)
-                    </span>
-                    <a
-                      href={artifactFileUrl(promptId, file.name)}
-                      className="text-link"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Open
-                    </a>
-                  </li>
-                ))}
-                {manifestFiles.length === 0 &&
-                  artifactPaths.map(([key, path]) => (
-                    <li key={key}>
-                      <code>{key}</code>: <code>{path}</code>
-                    </li>
-                  ))}
-              </ul>
-            )}
-            {selectedFile && (
-              <div className="artifact-preview">
-                <h3>{selectedFile}</h3>
-                {fileLoading ? (
-                  <LoadingState />
-                ) : (
-                  <pre className="draft-text">{fileContent}</pre>
+      <Grid hasGutter>
+        <GridItem md={8}>
+          <Stack hasGutter>
+            <Panel title="Metadata">
+              <DescriptionList isCompact>
+                <DescriptionListGroup>
+                  <DescriptionListTerm>Prompt ID</DescriptionListTerm>
+                  <DescriptionListDescription>
+                    <code>{metadata.prompt_id}</code>
+                  </DescriptionListDescription>
+                </DescriptionListGroup>
+                <DescriptionListGroup>
+                  <DescriptionListTerm>Version</DescriptionListTerm>
+                  <DescriptionListDescription>{metadata.version}</DescriptionListDescription>
+                </DescriptionListGroup>
+                <DescriptionListGroup>
+                  <DescriptionListTerm>Output form</DescriptionListTerm>
+                  <DescriptionListDescription>{metadata.output_form || "—"}</DescriptionListDescription>
+                </DescriptionListGroup>
+                {metadata.tags.length > 0 && (
+                  <DescriptionListGroup>
+                    <DescriptionListTerm>Tags</DescriptionListTerm>
+                    <DescriptionListDescription>{metadata.tags.join(", ")}</DescriptionListDescription>
+                  </DescriptionListGroup>
                 )}
-              </div>
-            )}
-          </Panel>
-        </div>
-        <RequirementCardPanel card={data.requirement_card} title="Coding dimensions" />
-      </div>
-    </div>
+                {Object.keys(metadata.evaluation_scores).length > 0 && (
+                  <DescriptionListGroup>
+                    <DescriptionListTerm>Evaluation scores</DescriptionListTerm>
+                    <DescriptionListDescription>
+                      <Content component="ul">
+                        {Object.entries(metadata.evaluation_scores).map(([key, value]) => (
+                          <Content key={key} component="li">
+                            {key}: {value}
+                          </Content>
+                        ))}
+                      </Content>
+                    </DescriptionListDescription>
+                  </DescriptionListGroup>
+                )}
+              </DescriptionList>
+            </Panel>
+
+            <Panel title="Canonical prompt">
+              <DraftBlock body={data.canonical_prompt} label="Registry canonical" />
+            </Panel>
+
+            <Panel title="Artifacts">
+              {manifestFiles.length === 0 && artifactPaths.length === 0 ? (
+                <Content component="p">No export artifacts linked yet.</Content>
+              ) : (
+                <Content component="ul">
+                  {manifestFiles.map((file) => (
+                    <Content key={file.name} component="li">
+                      <Button variant="link" isInline onClick={() => void openArtifact(file.name)}>
+                        {file.name}
+                      </Button>
+                      <Content component="small">
+                        ({file.format}, {file.size_bytes} bytes)
+                      </Content>
+                      <a href={artifactFileUrl(promptId, file.name)} target="_blank" rel="noreferrer">
+                        Open
+                      </a>
+                    </Content>
+                  ))}
+                  {manifestFiles.length === 0 &&
+                    artifactPaths.map(([key, path]) => (
+                      <Content key={key} component="li">
+                        <code>{key}</code>: <code>{path}</code>
+                      </Content>
+                    ))}
+                </Content>
+              )}
+              {selectedFile && (
+                <div>
+                  <Title headingLevel="h3" size="md">
+                    {selectedFile}
+                  </Title>
+                  {fileLoading ? <LoadingState /> : <DraftBlock body={fileContent} label={selectedFile} />}
+                </div>
+              )}
+            </Panel>
+          </Stack>
+        </GridItem>
+        <GridItem md={4}>
+          <RequirementCardPanel card={data.requirement_card} title="Coding dimensions" />
+        </GridItem>
+      </Grid>
+    </PageFrame>
   );
 }

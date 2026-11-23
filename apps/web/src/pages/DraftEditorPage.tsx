@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Button, Checkbox, Content, Form, Grid, GridItem, Stack } from "@patternfly/react-core";
 import { ApiError } from "../api/http";
 import type { SessionDetailResponse } from "../api/types";
 import { useEditDraft, useFinalizeSession } from "../api/hooks";
@@ -8,8 +9,10 @@ import { clipboardToMarkdown, insertText } from "../lib/pastedTable";
 import {
   DraftBlock,
   ErrorBanner,
+  PageFrame,
   PageHeader,
   Panel,
+  TextAreaField,
   WarningBanner,
 } from "../components/ui";
 
@@ -83,154 +86,150 @@ export function DraftEditorPage({ sessionId, session, readOnly = false }: DraftE
         : null;
 
   return (
-    <div className="page">
+    <PageFrame>
       <PageHeader
         title="Draft editor"
         subtitle="Type or paste in the draft pane, or revise with natural-language instructions, then finalize to write the canonical prompt to the registry."
       />
-      <div className="grid-workflow">
-        <div className="workflow-main stack-form">
-          {draft ? (
-            <Panel title={`Draft v${draft.version}`}>
-              {readOnly ? (
-                <DraftBlock body={draft.body} />
-              ) : (
-                <form className="stack-form" onSubmit={handleSaveDraft}>
-                  <label className="field">
-                    <span className="sr-only">Draft body</span>
-                    <textarea
-                      className="draft-text draft-editor"
+      <Grid hasGutter>
+        <GridItem md={8}>
+          <Stack hasGutter>
+            {draft ? (
+              <Panel title={`Draft v${draft.version}`}>
+                {readOnly ? (
+                  <DraftBlock body={draft.body} />
+                ) : (
+                  <Form onSubmit={handleSaveDraft}>
+                    <TextAreaField
+                      id="draft-body"
+                      ariaLabel="Draft body"
                       rows={18}
                       value={draftBody}
-                      onChange={(event) => setDraftBody(event.target.value)}
+                      onChange={setDraftBody}
                       onPaste={handleDraftPaste}
                       spellCheck={false}
                     />
-                  </label>
-                  {draftDirty && <p className="muted">Unsaved changes in this pane.</p>}
+                    {draftDirty && <Content component="small">Unsaved changes in this pane.</Content>}
+                    {editError && <ErrorBanner message={editError} />}
+                    <Button
+                      type="submit"
+                      variant="secondary"
+                      isDisabled={editDraft.isPending || !draftDirty || !draftBody.trim()}
+                    >
+                      {editDraft.isPending ? "Saving…" : "Save draft"}
+                    </Button>
+                  </Form>
+                )}
+                {draft.change_summary && <Content component="small">{draft.change_summary}</Content>}
+              </Panel>
+            ) : (
+              <Panel>
+                <Content component="p">No draft available yet.</Content>
+              </Panel>
+            )}
+
+            {!readOnly && hasUnresolvedQueue && (
+              <ClarificationQuestionPanel
+                sessionId={sessionId}
+                session={session}
+                title={`Unresolved field ${questionNumber} of ${totalQuestions}`}
+                helpText="Answer remaining unspecified fields here. Each answer updates the draft. You can also use free-text edits below."
+              />
+            )}
+
+            {!readOnly && (
+              <Panel title="Edit instruction">
+                <Form onSubmit={handleEdit}>
+                  <TextAreaField
+                    id="edit-instruction"
+                    label="Instruction"
+                    rows={4}
+                    value={instruction}
+                    onChange={setInstruction}
+                    placeholder="Example: Change tone to analytical and tighten the output contract."
+                  />
                   {editError && <ErrorBanner message={editError} />}
-                  <button
-                    type="submit"
-                    className="button secondary"
-                    disabled={editDraft.isPending || !draftDirty || !draftBody.trim()}
-                  >
-                    {editDraft.isPending ? "Saving…" : "Save draft"}
-                  </button>
-                </form>
-              )}
-              {draft.change_summary && <p className="muted">{draft.change_summary}</p>}
-            </Panel>
-          ) : (
-            <Panel>
-              <p className="muted">No draft available yet.</p>
-            </Panel>
-          )}
-
-          {!readOnly && hasUnresolvedQueue && (
-            <ClarificationQuestionPanel
-              sessionId={sessionId}
-              session={session}
-              title={`Unresolved field ${questionNumber} of ${totalQuestions}`}
-              helpText="Answer remaining unspecified fields here. Each answer updates the draft. You can also use free-text edits below."
-            />
-          )}
-
-          {!readOnly && (
-          <Panel title="Edit instruction">
-            <form className="stack-form" onSubmit={handleEdit}>
-              <label className="field">
-                <span>Instruction</span>
-                <textarea
-                  rows={4}
-                  value={instruction}
-                  onChange={(event) => setInstruction(event.target.value)}
-                  placeholder="Example: Change tone to analytical and tighten the output contract."
-                />
-              </label>
-              {editError && <ErrorBanner message={editError} />}
-              <button
-                type="submit"
-                className="button secondary"
-                disabled={editDraft.isPending || !instruction.trim()}
-              >
-                {editDraft.isPending ? "Applying…" : "Submit change"}
-              </button>
-            </form>
-          </Panel>
-          )}
-
-          {(session.semantic_diff || session.change_summary) && (
-            <Panel title="Semantic diff">
-              {session.change_summary && <p>{session.change_summary}</p>}
-              {session.semantic_diff && <pre className="diff-text">{session.semantic_diff}</pre>}
-              {session.edit_intent && (
-                <p className="muted">
-                  Intent: <code>{session.edit_intent}</code>
-                </p>
-              )}
-            </Panel>
-          )}
-
-          {unresolved.length > 0 && (
-            <WarningBanner message={`Unresolved fields: ${unresolved.join(", ")}`} />
-          )}
-
-          {readiness && !readiness.ready && (
-            <Panel title="First-shot readiness">
-              <p className="muted">
-                Score {Math.round(readiness.score * 100)}%. Gaps below usually cause multi-iteration
-                coding. Fill them or acknowledge the risk to finalize anyway.
-              </p>
-              <ul className="compact-list">
-                {readiness.risks.map((risk) => (
-                  <li key={risk.code + (risk.field_name ?? "")}>{risk.message}</li>
-                ))}
-              </ul>
-            </Panel>
-          )}
-
-          {!readOnly && (
-          <Panel title="Finalize">
-            <p className="muted">
-              Finalization freezes the canonical draft and writes registry files under{" "}
-              <code>data/registry/</code>.
-            </p>
-            {draftDirty && (
-              <p className="muted">Save draft edits in the pane above before finalizing.</p>
+                  <Button type="submit" variant="secondary" isDisabled={editDraft.isPending || !instruction.trim()}>
+                    {editDraft.isPending ? "Applying…" : "Submit change"}
+                  </Button>
+                </Form>
+              </Panel>
             )}
-            {(firstShotBlocked || (readiness && !readiness.ready)) && (
-              <label className="checkbox-field">
-                <input
-                  type="checkbox"
-                  checked={ackFirstShotRisk}
-                  onChange={(event) => setAckFirstShotRisk(event.target.checked)}
-                />
-                <span>I acknowledge first-shot contract gaps and want to finalize anyway</span>
-              </label>
+
+            {(session.semantic_diff || session.change_summary) && (
+              <Panel title="Semantic diff">
+                {session.change_summary && <Content component="p">{session.change_summary}</Content>}
+                {session.semantic_diff && <DraftBlock body={session.semantic_diff} label="Diff" />}
+                {session.edit_intent && (
+                  <Content component="small">
+                    Intent: <code>{session.edit_intent}</code>
+                  </Content>
+                )}
+              </Panel>
             )}
-            {finalizeError && <ErrorBanner message={finalizeError} />}
-            <button
-              type="button"
-              className="button primary"
-              disabled={
-                finalize.isPending ||
-                !draft ||
-                draftDirty ||
-                (Boolean(readiness && !readiness.ready) && !ackFirstShotRisk)
-              }
-              onClick={() =>
-                void finalize.mutateAsync({
-                  acknowledgeFirstShotRisk: ackFirstShotRisk,
-                })
-              }
-            >
-              {finalize.isPending ? "Finalizing…" : "Finalize prompt"}
-            </button>
-          </Panel>
-          )}
-        </div>
-        <RequirementCardPanel card={session.requirement_card} />
-      </div>
-    </div>
+
+            {unresolved.length > 0 && (
+              <WarningBanner message={`Unresolved fields: ${unresolved.join(", ")}`} />
+            )}
+
+            {readiness && !readiness.ready && (
+              <Panel title="First-shot readiness">
+                <Content component="p">
+                  Score {Math.round(readiness.score * 100)}%. Gaps below usually cause multi-iteration
+                  coding. Fill them or acknowledge the risk to finalize anyway.
+                </Content>
+                <Content component="ul">
+                  {readiness.risks.map((risk) => (
+                    <Content key={risk.code + (risk.field_name ?? "")} component="li">
+                      {risk.message}
+                    </Content>
+                  ))}
+                </Content>
+              </Panel>
+            )}
+
+            {!readOnly && (
+              <Panel title="Finalize">
+                <Content component="p">
+                  Finalization freezes the canonical draft and writes registry files under{" "}
+                  <code>data/registry/</code>.
+                </Content>
+                {draftDirty && (
+                  <Content component="small">Save draft edits in the pane above before finalizing.</Content>
+                )}
+                {(firstShotBlocked || (readiness && !readiness.ready)) && (
+                  <Checkbox
+                    id="ack-first-shot"
+                    label="I acknowledge first-shot contract gaps and want to finalize anyway"
+                    isChecked={ackFirstShotRisk}
+                    onChange={(_event, checked) => setAckFirstShotRisk(checked)}
+                  />
+                )}
+                {finalizeError && <ErrorBanner message={finalizeError} />}
+                <Button
+                  variant="primary"
+                  isDisabled={
+                    finalize.isPending ||
+                    !draft ||
+                    draftDirty ||
+                    (Boolean(readiness && !readiness.ready) && !ackFirstShotRisk)
+                  }
+                  onClick={() =>
+                    void finalize.mutateAsync({
+                      acknowledgeFirstShotRisk: ackFirstShotRisk,
+                    })
+                  }
+                >
+                  {finalize.isPending ? "Finalizing…" : "Finalize prompt"}
+                </Button>
+              </Panel>
+            )}
+          </Stack>
+        </GridItem>
+        <GridItem md={4}>
+          <RequirementCardPanel card={session.requirement_card} />
+        </GridItem>
+      </Grid>
+    </PageFrame>
   );
 }

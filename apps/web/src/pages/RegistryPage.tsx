@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { Content, SearchInput } from "@patternfly/react-core";
+import { Table, Tbody, Td, Th, Thead, Tr } from "@patternfly/react-table";
 import { useRegistryPrompts } from "../api/hooks";
 import { formatApiError } from "../api/http";
 import { filterRegistryPrompts } from "../lib/registrySearch";
 import { formatDate } from "../lib/sessionRouting";
-import { ErrorBanner, LoadingState, PageHeader, Panel } from "../components/ui";
+import { ErrorBanner, LoadingState, PageFrame, PageHeader, Panel } from "../components/ui";
 
 export function RegistryPage() {
   const registry = useRegistryPrompts();
@@ -19,7 +21,7 @@ export function RegistryPage() {
   const totalCount = registry.data?.length ?? 0;
 
   return (
-    <div className="page">
+    <PageFrame>
       <PageHeader
         title="Registry"
         subtitle="Browse finalized prompts stored under data/registry on this machine."
@@ -29,59 +31,50 @@ export function RegistryPage() {
         {registry.isError && (
           <ErrorBanner message={formatApiError(registry.error, "Could not load registry.")} />
         )}
-        {registry.data && totalCount === 0 && (
-          <p className="muted">No finalized prompts yet.</p>
-        )}
+        {registry.data && totalCount === 0 && <Content component="p">No finalized prompts yet.</Content>}
         {totalCount > 0 && (
-          <label className="field panel-search">
-            <span className="sr-only">Search finalized prompts</span>
-            <input
-              type="search"
-              className="select-input"
-              placeholder="Search by title, prompt ID, abstract, or tags…"
-              value={registrySearch}
-              onChange={(event) => setRegistrySearch(event.target.value)}
-              aria-label="Search finalized prompts"
-            />
-          </label>
+          <SearchInput
+            placeholder="Search by title, prompt ID, abstract, or tags…"
+            value={registrySearch}
+            onChange={(_event, value) => setRegistrySearch(value)}
+            aria-label="Search finalized prompts"
+          />
         )}
         {searchActive && totalCount > 0 && (
-          <p className="muted panel-search-meta">
+          <Content component="small">
             Showing {filteredPrompts.length} of {totalCount} prompts
-          </p>
+          </Content>
         )}
         {totalCount > 0 && filteredPrompts.length === 0 && (
-          <p className="muted">No finalized prompts match your search.</p>
+          <Content component="p">No finalized prompts match your search.</Content>
         )}
         {filteredPrompts.length > 0 && (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Title</th>
-                <th>Prompt ID</th>
-                <th>Version</th>
-                <th>Updated</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table aria-label="Finalized prompts">
+            <Thead>
+              <Tr>
+                <Th>Title</Th>
+                <Th>Prompt ID</Th>
+                <Th>Version</Th>
+                <Th>Updated</Th>
+              </Tr>
+            </Thead>
+            <Tbody>
               {filteredPrompts.map((prompt) => (
-                <tr key={prompt.prompt_id}>
-                  <td>
-                    <Link to={`/registry/${prompt.prompt_id}`} className="text-link">
-                      {prompt.title}
-                    </Link>
-                  </td>
-                  <td>
+                <Tr key={prompt.prompt_id}>
+                  <Td>
+                    <Link to={`/registry/${prompt.prompt_id}`}>{prompt.title}</Link>
+                  </Td>
+                  <Td>
                     <code>{prompt.prompt_id}</code>
-                  </td>
-                  <td>{prompt.version}</td>
-                  <td>{formatDate(prompt.updated_at)}</td>
-                </tr>
+                  </Td>
+                  <Td>{prompt.version}</Td>
+                  <Td>{formatDate(prompt.updated_at)}</Td>
+                </Tr>
               ))}
-            </tbody>
-          </table>
+            </Tbody>
+          </Table>
         )}
       </Panel>
-    </div>
+    </PageFrame>
   );
 }

@@ -14,7 +14,7 @@ import { ReviewStepBanner } from "../components/ReviewStepBanner";
 import { SessionClosedBanner } from "../components/SessionClosedBanner";
 import { WorkflowReopenActions } from "../components/WorkflowReopenActions";
 import { SessionWorkflowNav } from "../components/SessionWorkflowNav";
-import { LoadingState, ErrorBanner } from "../components/ui";
+import { LoadingState, ErrorBanner, PageFrame } from "../components/ui";
 import { ClarificationPage } from "./ClarificationPage";
 import { DraftEditorPage } from "./DraftEditorPage";
 import { SimilarityCheckPage } from "./SimilarityCheckPage";
@@ -52,14 +52,18 @@ export function SessionWorkflowPage({ step }: SessionWorkflowPageProps) {
   }, [sessionQuery.data]);
 
   if (sessionQuery.isLoading) {
-    return <LoadingState label="Loading session…" />;
+    return (
+      <PageFrame>
+        <LoadingState label="Loading session…" />
+      </PageFrame>
+    );
   }
 
   if (sessionQuery.isError || !sessionQuery.data) {
     return (
-      <div className="page narrow">
+      <PageFrame limited>
         <ErrorBanner message={sessionLoadErrorMessage(sessionQuery.error)} />
-      </div>
+      </PageFrame>
     );
   }
 
@@ -75,7 +79,8 @@ export function SessionWorkflowPage({ step }: SessionWorkflowPageProps) {
   const sessionClosed = isSessionClosed(session.session.state);
 
   return (
-    <div className="session-workflow">
+    <div>
+      <PageFrame>
       <SessionWorkflowNav
         sessionId={sessionId}
         state={session.session.state}
@@ -90,6 +95,7 @@ export function SessionWorkflowPage({ step }: SessionWorkflowPageProps) {
           <WorkflowReopenActions sessionId={sessionId} activeStep={activeStep} />
         </>
       )}
+      </PageFrame>
       {renderWorkflowStep(activeStep, sessionId, session, readOnly || sessionClosed)}
     </div>
   );
@@ -126,14 +132,18 @@ export function SessionRedirectPage() {
   const sessionQuery = useSession(sessionId);
 
   if (sessionQuery.isLoading) {
-    return <LoadingState label="Loading session…" />;
+    return (
+      <PageFrame>
+        <LoadingState label="Loading session…" />
+      </PageFrame>
+    );
   }
 
   if (sessionQuery.isError || !sessionQuery.data) {
     return (
-      <div className="page narrow">
+      <PageFrame limited>
         <ErrorBanner message={sessionLoadErrorMessage(sessionQuery.error)} />
-      </div>
+      </PageFrame>
     );
   }
 

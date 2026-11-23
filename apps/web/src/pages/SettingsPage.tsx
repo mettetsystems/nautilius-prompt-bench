@@ -1,13 +1,23 @@
 import { ModelSourceSettings } from "../components/ModelSourceSettings";
 import { HardwareRecommendations } from "../components/HardwareRecommendations";
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Button, Checkbox, Content, FormGroup, Slider, Title } from "@patternfly/react-core";
 import type { LlmHealthResponse } from "@prompt-piper/shared";
 import { formatApiError } from "../api/http";
 import type { ApiEndpointUpdate, UserSettingsResponse } from "../api/types";
 import { useUpdateUserSettings, useUserSettings } from "../api/hooks";
 import { fetchLlmHealth } from "../api/sessions";
-import { ErrorBanner, LoadingState, PageHeader, Panel, WarningBanner } from "../components/ui";
+import {
+  ErrorBanner,
+  LinkButton,
+  LoadingState,
+  PageFrame,
+  PageHeader,
+  Panel,
+  SuccessBanner,
+  TextField,
+  WarningBanner,
+} from "../components/ui";
 
 function toUpdatePayload(
   settings: UserSettingsResponse,
@@ -77,15 +87,23 @@ export function SettingsPage() {
     }
   }, [settingsQuery.data]);
 
-  if (settingsQuery.isLoading || !draft) {
-    return <LoadingState label="Loading settings…" />;
-  }
-
   if (settingsQuery.isError) {
     return (
-      <div className="page narrow">
+      <PageFrame limited>
+        <PageHeader
+          title="Settings"
+          subtitle="Runtime preferences for AI assistance, precision warnings, similarity scope, and external model APIs."
+        />
         <ErrorBanner message={formatApiError(settingsQuery.error, "Could not load settings.")} />
-      </div>
+      </PageFrame>
+    );
+  }
+
+  if (settingsQuery.isLoading || !draft) {
+    return (
+      <PageFrame limited>
+        <LoadingState label="Loading settings…" />
+      </PageFrame>
     );
   }
 
@@ -121,78 +139,67 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="page narrow">
+    <PageFrame limited>
       <PageHeader
         title="Settings"
         subtitle="Runtime preferences for AI assistance, precision warnings, similarity scope, and external model APIs."
         actions={
-          <Link to="/" className="button secondary">
+          <LinkButton to="/" variant="secondary">
             Back to dashboard
-          </Link>
+          </LinkButton>
         }
       />
 
       <HardwareRecommendations />
       <ModelSourceSettings />
       <Panel title="AI assistance">
-        <label className="field checkbox-field">
-          <input
-            type="checkbox"
-            checked={draft.llm_enabled}
-            onChange={(event) => setDraft({ ...draft, llm_enabled: event.target.checked })}
-          />
-          <span>Enable AI assistance (clarification, precision reranking)</span>
-        </label>
-        <p className="muted">
+        <Checkbox
+          id="llm-enabled"
+          label="Enable AI assistance (clarification, precision reranking)"
+          isChecked={draft.llm_enabled}
+          onChange={(_event, checked) => setDraft({ ...draft, llm_enabled: checked })}
+        />
+        <Content component="small">
           When disabled, Nautilius Prompting Workbench uses CPU-only rule-based fallbacks. External send-to-model
           endpoints are configured separately below.
-        </p>
-        <div className="setup-ai-tooling">
-          <p className="muted">
+        </Content>
+        <div>
+          <Content component="p">
             <strong>Current AI tooling model</strong> ({draft.setup_ai_tooling.source})
-          </p>
-          <p>
-            <code>{draft.setup_ai_tooling.chat_model}</code> at{" "}
-            <code>{draft.setup_ai_tooling.base_url}</code>
-          </p>
+          </Content>
+          <Content component="p">
+            <code>{draft.setup_ai_tooling.chat_model}</code> at <code>{draft.setup_ai_tooling.base_url}</code>
+          </Content>
           {draft.ai_tooling_override_active && (
-            <p className="muted">
+            <Content component="small">
               A saved override is configured and will replace this model after you restart the API.
               The test below probes the connection the API is using right now.
-            </p>
+            </Content>
           )}
-          <p className="muted">
+          <Content component="small">
             Test connection probes the live API process. If make dev-api could not start
             llama-server (often no CUDA/ROCm GPU), it disables the chat model even when this
             panel still shows the configured model name.
-          </p>
-          <div className="button-row">
-            <button
-              type="button"
-              className="button secondary"
-              disabled={toolingTestPending || !draft.llm_enabled}
-              title={
-                draft.llm_enabled
-                  ? "Probe the active AI tooling model endpoint"
-                  : "Enable AI assistance to test the model connection"
-              }
-              onClick={() => void testCurrentAiTooling()}
-            >
-              {toolingTestPending ? "Testing…" : "Test connection"}
-            </button>
-          </div>
+          </Content>
+          <Button
+            variant="secondary"
+            isDisabled={toolingTestPending || !draft.llm_enabled}
+            title={
+              draft.llm_enabled
+                ? "Probe the active AI tooling model endpoint"
+                : "Enable AI assistance to test the model connection"
+            }
+            onClick={() => void testCurrentAiTooling()}
+          >
+            {toolingTestPending ? "Testing…" : "Test connection"}
+          </Button>
           {toolingTestError && <ErrorBanner message={toolingTestError} />}
           {toolingTestResult?.status === "ok" && (
-            <div className="callout callout-ok" role="status">
-              Connected to <code>{toolingTestResult.model_name}</code>
-              {toolingTestResult.endpoint ? (
-                <>
-                  {" "}
-                  at <code>{toolingTestResult.endpoint}</code>
-                </>
-              ) : null}
-              {toolingTestResult.message ? ` — ${toolingTestResult.message}` : ""}
-            </div>
+            <SuccessBanner
+              message={`Connected to ${toolingTestResult.model_name ?? "the model"}${
+                toolingTestResult.endpoint ? ` at ${toolingTestResult.endpoint}` : ""
+              }${toolingTestResult.message ? ` — ${toolingTestResult.message}` : ""}`}
+            />
           )}
           {toolingTestResult && toolingTestResult.status === "disabled" && (
             <WarningBanner
@@ -216,323 +223,267 @@ export function SettingsPage() {
             toolingTestResult.status !== "ok" &&
             toolingTestResult.status !== "disabled" &&
             toolingTestResult.status !== "unreachable" && (
-              <WarningBanner
-                message={`${toolingTestResult.status}: ${toolingTestResult.message}`}
-              />
+              <WarningBanner message={`${toolingTestResult.status}: ${toolingTestResult.message}`} />
             )}
         </div>
       </Panel>
 
       <Panel title="Clarification question versions">
-        <p className="muted">
+        <Content component="small">
           Choose which wording levels appear during clarification. Standard opens by default;
           Beginner and Advanced stay collapsed until expanded.
-        </p>
-        <label className="field checkbox-field">
-          <input
-            type="checkbox"
-            checked={draft.clarification_versions.beginner}
-            onChange={(event) =>
-              setDraft({
-                ...draft,
-                clarification_versions: {
-                  ...draft.clarification_versions,
-                  beginner: event.target.checked,
-                },
-              })
-            }
-          />
-          <span>Beginner — plain language with why-it-matters explanations</span>
-        </label>
-        <label className="field checkbox-field">
-          <input
-            type="checkbox"
-            checked={draft.clarification_versions.standard}
-            onChange={(event) =>
-              setDraft({
-                ...draft,
-                clarification_versions: {
-                  ...draft.clarification_versions,
-                  standard: event.target.checked,
-                },
-              })
-            }
-          />
-          <span>Standard — developer-oriented wording (default open)</span>
-        </label>
-        <label className="field checkbox-field">
-          <input
-            type="checkbox"
-            checked={draft.clarification_versions.advanced}
-            onChange={(event) =>
-              setDraft({
-                ...draft,
-                clarification_versions: {
-                  ...draft.clarification_versions,
-                  advanced: event.target.checked,
-                },
-              })
-            }
-          />
-          <span>Advanced — compact, thorough wording for experts</span>
-        </label>
+        </Content>
+        <Checkbox
+          id="clarification-beginner"
+          label="Beginner — plain language with why-it-matters explanations"
+          isChecked={draft.clarification_versions.beginner}
+          onChange={(_event, checked) =>
+            setDraft({
+              ...draft,
+              clarification_versions: { ...draft.clarification_versions, beginner: checked },
+            })
+          }
+        />
+        <Checkbox
+          id="clarification-standard"
+          label="Standard — developer-oriented wording (default open)"
+          isChecked={draft.clarification_versions.standard}
+          onChange={(_event, checked) =>
+            setDraft({
+              ...draft,
+              clarification_versions: { ...draft.clarification_versions, standard: checked },
+            })
+          }
+        />
+        <Checkbox
+          id="clarification-advanced"
+          label="Advanced — compact, thorough wording for experts"
+          isChecked={draft.clarification_versions.advanced}
+          onChange={(_event, checked) =>
+            setDraft({
+              ...draft,
+              clarification_versions: { ...draft.clarification_versions, advanced: checked },
+            })
+          }
+        />
       </Panel>
 
       <Panel title="Semantic precision warning">
-        <label className="field">
-          <span>Warn when score is below {Math.round(draft.precision_warning_threshold * 100)}%</span>
-          <input
-            type="range"
+        <FormGroup
+          label={`Warn when score is below ${Math.round(draft.precision_warning_threshold * 100)}%`}
+          fieldId="precision-threshold"
+        >
+          <Slider
             min={0}
             max={100}
             step={5}
             value={Math.round(draft.precision_warning_threshold * 100)}
-            onChange={(event) =>
+            inputAriaLabel="Precision warning threshold"
+            onChange={(_event, value) =>
               setDraft({
                 ...draft,
-                precision_warning_threshold: Number(event.target.value) / 100,
+                precision_warning_threshold: value / 100,
               })
             }
           />
-        </label>
+        </FormGroup>
       </Panel>
 
       <Panel title="Similarity time scope">
-        <label className="field">
-          <span>{draft.similarity_time_scope_labels[draft.similarity_time_scope_index]}</span>
-          <input
-            type="range"
+        <FormGroup
+          label={draft.similarity_time_scope_labels[draft.similarity_time_scope_index]}
+          fieldId="similarity-scope"
+        >
+          <Slider
             min={0}
             max={draft.similarity_time_scope_labels.length - 1}
             step={1}
             value={draft.similarity_time_scope_index}
-            onChange={(event) =>
+            inputAriaLabel="Similarity time scope"
+            onChange={(_event, value) =>
               setDraft({
                 ...draft,
-                similarity_time_scope_index: Number(event.target.value),
+                similarity_time_scope_index: value,
               })
             }
           />
-        </label>
-        <p className="muted">
+        </FormGroup>
+        <Content component="small">
           Limits which prior finalized prompts are considered during similarity checks.
-        </p>
+        </Content>
       </Panel>
 
       <Panel title="External API endpoints">
-        <p className="muted">
+        <Content component="small">
           Up to six external OpenAI-compatible endpoints for send-to-model only. These do not
           include the local model from setup.
-        </p>
+        </Content>
         {draft.api_endpoints.map((endpoint, index) => (
-          <div key={endpoint.id} className="endpoint-slot">
-            <h3>Slot {index + 1}</h3>
-            <label className="field">
-              <span>Label</span>
-              <input
-                type="text"
-                value={endpoint.label}
-                onChange={(event) => updateEndpoint(index, { label: event.target.value })}
-              />
-            </label>
-            <label className="field">
-              <span>Base URL</span>
-              <input
-                type="url"
-                value={endpoint.base_url}
-                placeholder="https://api.openai.com/v1"
-                onChange={(event) => updateEndpoint(index, { base_url: event.target.value })}
-              />
-            </label>
-            <label className="field">
-              <span>Model</span>
-              <input
-                type="text"
-                value={endpoint.chat_model}
-                placeholder="gpt-4o-mini"
-                onChange={(event) => updateEndpoint(index, { chat_model: event.target.value })}
-              />
-            </label>
-            <label className="field">
-              <span>
-                API key {endpoint.api_key_configured ? "(configured — leave blank to keep)" : ""}
-              </span>
-              <input
-                type="password"
-                value={apiKeyDrafts[index] ?? ""}
-                autoComplete="off"
-                onChange={(event) =>
-                  setApiKeyDrafts((current) => {
-                    const next = [...current];
-                    next[index] = event.target.value;
-                    return next;
-                  })
-                }
-              />
-            </label>
+          <div key={endpoint.id}>
+            <Title headingLevel="h3" size="md">
+              Slot {index + 1}
+            </Title>
+            <TextField
+              id={`endpoint-${index}-label`}
+              label="Label"
+              value={endpoint.label}
+              onChange={(value) => updateEndpoint(index, { label: value })}
+            />
+            <TextField
+              id={`endpoint-${index}-url`}
+              label="Base URL"
+              type="url"
+              value={endpoint.base_url}
+              placeholder="https://api.openai.com/v1"
+              onChange={(value) => updateEndpoint(index, { base_url: value })}
+            />
+            <TextField
+              id={`endpoint-${index}-model`}
+              label="Model"
+              value={endpoint.chat_model}
+              placeholder="gpt-4o-mini"
+              onChange={(value) => updateEndpoint(index, { chat_model: value })}
+            />
+            <TextField
+              id={`endpoint-${index}-key`}
+              label={`API key ${endpoint.api_key_configured ? "(configured — leave blank to keep)" : ""}`}
+              type="password"
+              autoComplete="off"
+              value={apiKeyDrafts[index] ?? ""}
+              onChange={(value) =>
+                setApiKeyDrafts((current) => {
+                  const next = [...current];
+                  next[index] = value;
+                  return next;
+                })
+              }
+            />
           </div>
         ))}
       </Panel>
 
       <Panel title="Alternative AI tooling API">
-        <p className="muted">
+        <Content component="small">
           Optionally point clarification and precision reranking at a different OpenAI-compatible
-          API. Replaces the setup wizard model after you restart the API (
-          <code>make dev-api</code> or your container).
-        </p>
-        <label className="field">
-          <span>Label</span>
-          <input
-            type="text"
-            value={draft.ai_tooling_api_override.label}
-            onChange={(event) =>
-              setDraft({
-                ...draft,
-                ai_tooling_api_override: {
-                  ...draft.ai_tooling_api_override,
-                  label: event.target.value,
-                },
-              })
-            }
-          />
-        </label>
-        <label className="field">
-          <span>Base URL</span>
-          <input
-            type="url"
-            value={draft.ai_tooling_api_override.base_url}
-            placeholder="https://api.openai.com/v1"
-            onChange={(event) =>
-              setDraft({
-                ...draft,
-                ai_tooling_api_override: {
-                  ...draft.ai_tooling_api_override,
-                  base_url: event.target.value,
-                },
-              })
-            }
-          />
-        </label>
-        <label className="field">
-          <span>Model</span>
-          <input
-            type="text"
-            value={draft.ai_tooling_api_override.chat_model}
-            placeholder="gpt-4o-mini"
-            onChange={(event) =>
-              setDraft({
-                ...draft,
-                ai_tooling_api_override: {
-                  ...draft.ai_tooling_api_override,
-                  chat_model: event.target.value,
-                },
-              })
-            }
-          />
-        </label>
-        <label className="field">
-          <span>
-            API key{" "}
-            {draft.ai_tooling_api_override.api_key_configured
-              ? "(configured — leave blank to keep)"
-              : ""}
-          </span>
-          <input
-            type="password"
-            value={aiToolingApiKeyDraft}
-            autoComplete="off"
-            onChange={(event) => setAiToolingApiKeyDraft(event.target.value)}
-          />
-        </label>
+          API. Replaces the setup wizard model after you restart the API (<code>make dev-api</code> or
+          your container).
+        </Content>
+        <TextField
+          id="ai-tooling-label"
+          label="Label"
+          value={draft.ai_tooling_api_override.label}
+          onChange={(value) =>
+            setDraft({
+              ...draft,
+              ai_tooling_api_override: { ...draft.ai_tooling_api_override, label: value },
+            })
+          }
+        />
+        <TextField
+          id="ai-tooling-url"
+          label="Base URL"
+          type="url"
+          value={draft.ai_tooling_api_override.base_url}
+          placeholder="https://api.openai.com/v1"
+          onChange={(value) =>
+            setDraft({
+              ...draft,
+              ai_tooling_api_override: { ...draft.ai_tooling_api_override, base_url: value },
+            })
+          }
+        />
+        <TextField
+          id="ai-tooling-model"
+          label="Model"
+          value={draft.ai_tooling_api_override.chat_model}
+          placeholder="gpt-4o-mini"
+          onChange={(value) =>
+            setDraft({
+              ...draft,
+              ai_tooling_api_override: { ...draft.ai_tooling_api_override, chat_model: value },
+            })
+          }
+        />
+        <TextField
+          id="ai-tooling-key"
+          label={`API key ${
+            draft.ai_tooling_api_override.api_key_configured ? "(configured — leave blank to keep)" : ""
+          }`}
+          type="password"
+          autoComplete="off"
+          value={aiToolingApiKeyDraft}
+          onChange={setAiToolingApiKeyDraft}
+        />
       </Panel>
 
       <Panel title="Ask The Locals API">
-        <p className="muted">
+        <Content component="small">
           Optional OpenAI-compatible API used only by the Ask The Locals button during
           clarification. When blank, Ask The Locals uses the current AI tooling model. Takes effect
           immediately (no API restart).
-        </p>
-        <label className="field">
-          <span>Label</span>
-          <input
-            type="text"
-            value={draft.ask_the_locals_api_override.label}
-            onChange={(event) =>
-              setDraft({
-                ...draft,
-                ask_the_locals_api_override: {
-                  ...draft.ask_the_locals_api_override,
-                  label: event.target.value,
-                },
-              })
-            }
-          />
-        </label>
-        <label className="field">
-          <span>Base URL</span>
-          <input
-            type="url"
-            value={draft.ask_the_locals_api_override.base_url}
-            placeholder="https://api.openai.com/v1"
-            onChange={(event) =>
-              setDraft({
-                ...draft,
-                ask_the_locals_api_override: {
-                  ...draft.ask_the_locals_api_override,
-                  base_url: event.target.value,
-                },
-              })
-            }
-          />
-        </label>
-        <label className="field">
-          <span>Model</span>
-          <input
-            type="text"
-            value={draft.ask_the_locals_api_override.chat_model}
-            placeholder="gpt-4o-mini"
-            onChange={(event) =>
-              setDraft({
-                ...draft,
-                ask_the_locals_api_override: {
-                  ...draft.ask_the_locals_api_override,
-                  chat_model: event.target.value,
-                },
-              })
-            }
-          />
-        </label>
-        <label className="field">
-          <span>
-            API key{" "}
-            {draft.ask_the_locals_api_override.api_key_configured
+        </Content>
+        <TextField
+          id="locals-label"
+          label="Label"
+          value={draft.ask_the_locals_api_override.label}
+          onChange={(value) =>
+            setDraft({
+              ...draft,
+              ask_the_locals_api_override: { ...draft.ask_the_locals_api_override, label: value },
+            })
+          }
+        />
+        <TextField
+          id="locals-url"
+          label="Base URL"
+          type="url"
+          value={draft.ask_the_locals_api_override.base_url}
+          placeholder="https://api.openai.com/v1"
+          onChange={(value) =>
+            setDraft({
+              ...draft,
+              ask_the_locals_api_override: { ...draft.ask_the_locals_api_override, base_url: value },
+            })
+          }
+        />
+        <TextField
+          id="locals-model"
+          label="Model"
+          value={draft.ask_the_locals_api_override.chat_model}
+          placeholder="gpt-4o-mini"
+          onChange={(value) =>
+            setDraft({
+              ...draft,
+              ask_the_locals_api_override: { ...draft.ask_the_locals_api_override, chat_model: value },
+            })
+          }
+        />
+        <TextField
+          id="locals-key"
+          label={`API key ${
+            draft.ask_the_locals_api_override.api_key_configured
               ? "(configured — leave blank to keep)"
-              : ""}
-          </span>
-          <input
-            type="password"
-            value={askTheLocalsApiKeyDraft}
-            autoComplete="off"
-            onChange={(event) => setAskTheLocalsApiKeyDraft(event.target.value)}
-          />
-        </label>
+              : ""
+          }`}
+          type="password"
+          autoComplete="off"
+          value={askTheLocalsApiKeyDraft}
+          onChange={setAskTheLocalsApiKeyDraft}
+        />
       </Panel>
 
       {saveError && <ErrorBanner message={saveError} />}
-      <div className="button-row">
-        <button
-          type="button"
-          className="button primary"
-          disabled={saveSettings.isPending}
-          onClick={() =>
-            void saveSettings.mutateAsync(
-              toUpdatePayload(draft, apiKeyDrafts, aiToolingApiKeyDraft, askTheLocalsApiKeyDraft),
-            )
-          }
-        >
-          {saveSettings.isPending ? "Saving…" : "Save settings"}
-        </button>
-      </div>
-    </div>
+      <Button
+        variant="primary"
+        isDisabled={saveSettings.isPending}
+        onClick={() =>
+          void saveSettings.mutateAsync(
+            toUpdatePayload(draft, apiKeyDrafts, aiToolingApiKeyDraft, askTheLocalsApiKeyDraft),
+          )
+        }
+      >
+        {saveSettings.isPending ? "Saving…" : "Save settings"}
+      </Button>
+    </PageFrame>
   );
 }

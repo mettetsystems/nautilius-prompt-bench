@@ -42,12 +42,13 @@ describe("flipped interaction questions", () => {
   it("shows why and unconfirmed blind spots in every wording without adopting them", () => {
     render(<ClarificationQuestionPanel sessionId="one" session={{ ...session, clarification_versions: versions }} />);
     for (const label of ["Beginner", "Standard", "Advanced"]) {
-      const detail = screen.getByText(label).closest("details")!;
-      expect(within(detail).getByText("Why this matters:")).toBeInTheDocument();
-      expect(within(detail).getByText(rationale, { exact: false })).toBeInTheDocument();
-      expect(within(detail).getByText("Potential blind spots (unconfirmed)")).toBeInTheDocument();
-      expect(within(detail).getByText(blindSpot)).toBeInTheDocument();
-      if (label === "Standard") expect(detail).toHaveAttribute("open");
+      const toggle = screen.getByText(label).closest("button")!;
+      const region = document.getElementById(toggle.getAttribute("aria-controls")!)!;
+      expect(toggle).toHaveAttribute("aria-expanded", label === "Standard" ? "true" : "false");
+      expect(region).toHaveTextContent("Why this matters:");
+      expect(region).toHaveTextContent(rationale);
+      expect(region).toHaveTextContent("Potential blind spots (unconfirmed)");
+      expect(region).toHaveTextContent(blindSpot);
     }
     expect(screen.getByLabelText("Custom answer (optional)")).toHaveValue("");
     expect(mocks.answer).not.toHaveBeenCalled();
@@ -59,7 +60,9 @@ describe("flipped interaction questions", () => {
       rationale: version.level === "beginner" ? rationale : null,
     }));
     render(<ClarificationQuestionPanel sessionId="one" session={{ ...session, clarification_versions: legacyVersions }} />);
-    const standard = screen.getByText("Standard").closest("details")!;
+    const toggle = screen.getByText("Standard").closest("button")!;
+    const standard = document.getElementById(toggle.getAttribute("aria-controls")!)!;
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(within(standard).getByText(rationale, { exact: false })).toBeInTheDocument();
     expect(screen.queryByText("Potential blind spots (unconfirmed)")).not.toBeInTheDocument();
   });

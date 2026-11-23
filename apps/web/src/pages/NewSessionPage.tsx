@@ -1,10 +1,11 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Button, Form } from "@patternfly/react-core";
 import { formatApiError } from "../api/http";
 import { useCreateSession } from "../api/hooks";
 import { clipboardToMarkdown, insertText } from "../lib/pastedTable";
 import { sessionPath, sessionStepForState } from "../lib/sessionRouting";
-import { ErrorBanner, PageHeader, Panel } from "../components/ui";
+import { ErrorBanner, PageFrame, PageHeader, Panel, TextAreaField, TextField } from "../components/ui";
 
 export function NewSessionPage() {
   const navigate = useNavigate();
@@ -56,42 +57,37 @@ export function NewSessionPage() {
       : null;
 
   return (
-    <div className="page narrow">
+    <PageFrame limited>
       <PageHeader
         title="Initial prompt"
         subtitle="Describe the long-horizon coding task. Nautilius will extract the task identity and ask 16 operational-control questions with conservative defaults."
       />
       <Panel>
-        <form className="stack-form" onSubmit={handleSubmit}>
-          <label className="field">
-            <span>Initial prompt</span>
-            <textarea
-              ref={textareaRef}
-              rows={12}
-              value={request}
-              onChange={(event) => setRequest(event.target.value)}
-              onPaste={handlePaste}
-              placeholder="Describe the coding task. Pasted tables become markdown."
-              required
-            />
-          </label>
-          <label className="field">
-            <span>Title (optional)</span>
-            <input
-              type="text"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="FastAPI feature coding prompt"
-            />
-          </label>
+        <Form onSubmit={handleSubmit}>
+          <TextAreaField
+            id="initial-prompt"
+            label="Initial prompt"
+            inputRef={textareaRef}
+            rows={12}
+            value={request}
+            onChange={setRequest}
+            onPaste={handlePaste}
+            placeholder="Describe the coding task. Pasted tables become markdown."
+            isRequired
+          />
+          <TextField
+            id="session-title"
+            label="Title (optional)"
+            value={title}
+            onChange={setTitle}
+            placeholder="FastAPI feature coding prompt"
+          />
           {errorMessage && <ErrorBanner message={errorMessage} />}
-          <div className="form-actions">
-            <button type="submit" className="button primary" disabled={createSession.isPending}>
-              {createSession.isPending ? "Creating…" : "Create session"}
-            </button>
-          </div>
-        </form>
+          <Button type="submit" variant="primary" isDisabled={createSession.isPending}>
+            {createSession.isPending ? "Creating…" : "Create session"}
+          </Button>
+        </Form>
       </Panel>
-    </div>
+    </PageFrame>
   );
 }

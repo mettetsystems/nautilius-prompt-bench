@@ -3,6 +3,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import faviconUrl from "@assets/logo/logo-mark.png";
 import { App } from "./App";
+import "@patternfly/react-core/dist/styles/base.css";
 import "./index.css";
 
 function ensureFavicon(href: string) {

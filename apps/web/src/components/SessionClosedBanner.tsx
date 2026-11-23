@@ -1,3 +1,4 @@
+import { Alert } from "@patternfly/react-core";
 import { SessionTemplateButton } from "./SessionTemplateButton";
 
 interface SessionClosedBannerProps {
@@ -6,13 +7,12 @@ interface SessionClosedBannerProps {
 
 export function SessionClosedBanner({ sessionId }: SessionClosedBannerProps) {
   return (
-    <div className="callout callout-warn session-closed-banner" role="status">
-      <strong>Session closed</strong>
+    <Alert variant="warning" isInline role="status" title="Session closed">
       <p>
         This session is complete and preserved for audit. Previous steps are read-only and cannot
         be re-run.
       </p>
       <SessionTemplateButton sessionId={sessionId} />
-    </div>
+    </Alert>
   );
 }

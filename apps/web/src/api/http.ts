@@ -29,10 +29,14 @@ function resolveBaseUrl(): string {
 
 export function formatApiError(error: unknown, fallback = "Request failed."): string {
   if (error instanceof ApiError) {
-    if (error.code) {
-      return `${error.message} (${error.code})`;
+    const message = error.message.trim();
+    if (!message) {
+      return fallback;
     }
-    return error.message;
+    if (error.code) {
+      return `${message} (${error.code})`;
+    }
+    return message;
   }
   if (error instanceof TypeError) {
     return "Cannot reach the API. Start the backend with: make dev-api";
